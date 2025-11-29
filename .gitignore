@@ -1,0 +1,6 @@
+/target
+.env
+*.log
+node_modules
+frontend/dist/
+uploads/
