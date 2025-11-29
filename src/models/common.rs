@@ -7,6 +7,14 @@ pub enum Gender {
     F,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ScholarInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "imageFilename", skip_serializing_if = "Option::is_none")]
+    pub image_filename: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Pagination {
     pub page: i64,

@@ -26,32 +26,8 @@ export default function News() {
       setError(null);
       const response = await api.getNews({ page, page_size: 10 });
       
-      // Fetch scholar details for each news item
-      const newsWithScholars = await Promise.all(
-        (response.data || []).map(async (newsItem) => {
-          if (newsItem.scholarIds && newsItem.scholarIds.length > 0) {
-            const scholars = await Promise.all(
-              newsItem.scholarIds.map(async (scholarId) => {
-                try {
-                  const scholar = await api.getScholar(scholarId);
-                  return {
-                    id: scholar.id,
-                    name: scholar.name,
-                    imageFilename: scholar.imageFilename
-                  };
-                } catch (err) {
-                  console.error(`Failed to fetch scholar ${scholarId}:`, err);
-                  return null;
-                }
-              })
-            );
-            return { ...newsItem, scholars: scholars.filter(s => s !== null) };
-          }
-          return { ...newsItem, scholars: [] };
-        })
-      );
-      
-      setNews(newsWithScholars);
+      // The API now returns scholars with id, name, and imageFilename directly
+      setNews(response.data || []);
       setPagination(response.pagination);
     } catch (err) {
       setError(err.message);

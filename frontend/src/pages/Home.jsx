@@ -1,20 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import ScholarCard from '../components/ScholarCard';
-import { useResponsivePagination } from '../hooks/useResponsivePagination';
 
 export default function Home() {
   const [featuredScholars, setFeaturedScholars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Responsive pagination for featured scholars
-  const { pageSize } = useResponsivePagination({
-    itemHeight: 400,
-    minItemsPerPage: 4,
-    maxItemsPerPage: 16
-  });
 
   useEffect(() => {
     loadFeaturedScholars();

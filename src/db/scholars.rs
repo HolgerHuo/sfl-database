@@ -1,6 +1,7 @@
 use chrono::Utc;
 use cuid2;
 use sqlx::{QueryBuilder, Row};
+use std::collections::HashMap;
 
 use crate::models::*;
 use crate::utils::{AppError, AppResult};
@@ -543,5 +544,23 @@ impl super::Database {
         .await?;
 
         Ok((history, total.0))
+    }
+
+    pub async fn get_scholars_info(&self, scholar_ids: &[String]) -> AppResult<HashMap<String, ScholarInfo>> {
+        if scholar_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let scholars: Vec<ScholarInfo> = sqlx::query_as(
+            "SELECT s.id, s.name, i.filename as image_filename
+             FROM scholars s
+             LEFT JOIN images i ON s.image = i.id
+             WHERE s.id = ANY($1)"
+        )
+        .bind(scholar_ids)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(scholars.into_iter().map(|s| (s.id.clone(), s)).collect())
     }
 }

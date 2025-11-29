@@ -16,32 +16,9 @@ export default function Tags() {
       setLoading(true);
       setError(null);
       
-      // Load all tags
+      // The API now returns tags with scholars (id, name, imageFilename) directly
       const tagsResponse = await api.getTags();
-      const tags = tagsResponse.data || [];
-      
-      // Load scholars for each tag (first 6 scholars per tag)
-      const tagsWithScholarsData = await Promise.all(
-        tags.map(async (tag) => {
-          try {
-            const scholarsResponse = await api.getScholars({ 
-              tags: [tag.id], 
-              page_size: 6 
-            });
-            return {
-              ...tag,
-              scholars: scholarsResponse.data || []
-            };
-          } catch (err) {
-            return {
-              ...tag,
-              scholars: []
-            };
-          }
-        })
-      );
-      
-      setTagsWithScholars(tagsWithScholarsData);
+      setTagsWithScholars(tagsResponse.data || []);
     } catch (err) {
       setError(err.message);
     } finally {

@@ -1,47 +1,37 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
-import { useResponsivePagination } from '../hooks/useResponsivePagination';
 
 export default function TagDetail() {
   const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [scholars, setScholars] = useState([]);
   const [tagName, setTagName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   
-  // Responsive pagination - TagDetail uses 6 columns on large screens
-  const { pageSize } = useResponsivePagination({
-    itemHeight: 200, // Smaller items in TagDetail (circular avatars)
-    minItemsPerPage: 6,
-    maxItemsPerPage: 60
-  });
+  // Get page from URL or default to 1
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  
+  // Fixed page size for consistent API calls
+  const pageSize = 24;
+
+  const setPage = (newPage) => {
+    setSearchParams({ page: newPage.toString() });
+  };
 
   useEffect(() => {
     loadScholarsByTag();
-  }, [id, page, pageSize]);
+  }, [id, page]);
 
   const loadScholarsByTag = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      // First get all tags to find the tag name
-      const tagsResponse = await api.getTags();
-      const tag = tagsResponse.data.find(t => t.id === id);
-      if (tag) {
-        setTagName(tag.name);
-      }
-      
-      // Then get scholars filtered by this tag with pagination
-      const response = await api.getScholars({ 
-        tags: [id], 
-        page,
-        page_size: pageSize
-      });
-      setScholars(response.data || []);
+            const response = await api.getTag(id, { page, page_size: pageSize });
+      setTagName(response.name);
+      setScholars(response.scholars || []);
       setPagination(response.pagination);
     } catch (err) {
       setError(err.message);
@@ -104,7 +94,7 @@ export default function TagDetail() {
           </div>
 
           {/* Pagination */}
-          {pagination && pagination.total_pages > 1 && (
+          {pagination && pagination.totalPages > 1 && (
             <div className="mt-8 flex justify-center items-center space-x-4">
               <button
                 onClick={() => setPage(page - 1)}
@@ -114,11 +104,11 @@ export default function TagDetail() {
                 上一页
               </button>
               <span className="text-gray-700">
-                第 {page} 页 / 共 {pagination.total_pages} 页
+                第 {page} 页 / 共 {pagination.totalPages} 页
               </span>
               <button
                 onClick={() => setPage(page + 1)}
-                disabled={page === pagination.total_pages}
+                disabled={page === pagination.totalPages}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
               >
                 下一页

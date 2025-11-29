@@ -42,6 +42,14 @@ export const api = {
     return response.json();
   },
 
+  async getTag(id, params = {}) {
+    const queryString = buildQueryString(params);
+    const url = `${API_BASE_URL}/tags/${id}${queryString ? `?${queryString}` : ''}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('获取标签详情失败');
+    return response.json();
+  },
+
   // News - Public endpoints
   async getNews(params = {}) {
     const queryString = buildQueryString(params);

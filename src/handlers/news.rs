@@ -13,7 +13,14 @@ pub async fn list_news(
     let mut responses = Vec::new();
     for news in news_list {
         let scholar_ids = app_state.db.get_news_scholars(&news.id).await?;
-        responses.push(NewsResponse { news, scholar_ids });
+        let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
+        
+        let scholars: Vec<ScholarInfo> = scholar_ids
+            .iter()
+            .filter_map(|id| scholars_map.get(id).cloned())
+            .collect();
+        
+        responses.push(NewsResponse { news, scholars });
     }
 
     let pagination = Pagination::new(query.pagination.page, query.pagination.page_size, total);
@@ -31,8 +38,14 @@ pub async fn get_news(
     let news_id = path.into_inner();
     let news = app_state.db.get_news(&news_id).await?;
     let scholar_ids = app_state.db.get_news_scholars(&news_id).await?;
+    let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
+    
+    let scholars: Vec<ScholarInfo> = scholar_ids
+        .iter()
+        .filter_map(|id| scholars_map.get(id).cloned())
+        .collect();
 
-    Ok(HttpResponse::Ok().json(NewsResponse { news, scholar_ids }))
+    Ok(HttpResponse::Ok().json(NewsResponse { news, scholars }))
 }
 
 pub async fn create_news(
@@ -45,8 +58,14 @@ pub async fn create_news(
 
     let news = app_state.db.create_news(&input, &claims.user_id).await?;
     let scholar_ids = app_state.db.get_news_scholars(&news.id).await?;
+    let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
+    
+    let scholars: Vec<ScholarInfo> = scholar_ids
+        .iter()
+        .filter_map(|id| scholars_map.get(id).cloned())
+        .collect();
 
-    Ok(HttpResponse::Created().json(NewsResponse { news, scholar_ids }))
+    Ok(HttpResponse::Created().json(NewsResponse { news, scholars }))
 }
 
 pub async fn update_news(
@@ -64,8 +83,14 @@ pub async fn update_news(
         .update_news(&news_id, &input, &claims.user_id)
         .await?;
     let scholar_ids = app_state.db.get_news_scholars(&news_id).await?;
+    let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
+    
+    let scholars: Vec<ScholarInfo> = scholar_ids
+        .iter()
+        .filter_map(|id| scholars_map.get(id).cloned())
+        .collect();
 
-    Ok(HttpResponse::Ok().json(NewsResponse { news, scholar_ids }))
+    Ok(HttpResponse::Ok().json(NewsResponse { news, scholars }))
 }
 
 pub async fn delete_news(

@@ -1,5 +1,6 @@
 use chrono::Utc;
 use cuid2;
+use std::collections::HashMap;
 
 use crate::models::*;
 use crate::utils::{AppError, AppResult};
@@ -79,5 +80,59 @@ impl super::Database {
         }
 
         Ok(())
+    }
+
+    pub async fn get_tag_scholars(
+        &self,
+        tag_id: &str,
+        page: Option<i64>,
+        page_size: Option<i64>,
+    ) -> AppResult<(Vec<String>, i64)> {
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM scholar_tags WHERE tag = $1"
+        )
+        .bind(tag_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Get scholar IDs with optional pagination
+        let scholars: Vec<(String,)> = if let (Some(page), Some(page_size)) = (page, page_size) {
+            let offset = (page - 1) * page_size;
+            sqlx::query_as(
+                "SELECT scholar FROM scholar_tags WHERE tag = $1 ORDER BY created_at LIMIT $2 OFFSET $3"
+            )
+            .bind(tag_id)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as("SELECT scholar FROM scholar_tags WHERE tag = $1 ORDER BY created_at")
+                .bind(tag_id)
+                .fetch_all(&self.pool)
+                .await?
+        };
+
+        Ok((scholars.into_iter().map(|(id,)| id).collect(), total.0))
+    }
+
+    pub async fn get_tags_scholars_map(&self, tag_ids: &[String]) -> AppResult<HashMap<String, Vec<String>>> {
+        if tag_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT tag, scholar FROM scholar_tags WHERE tag = ANY($1) ORDER BY created_at"
+        )
+        .bind(tag_ids)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut map: HashMap<String, Vec<String>> = HashMap::new();
+        for (tag_id, scholar_id) in rows {
+            map.entry(tag_id).or_insert_with(Vec::new).push(scholar_id);
+        }
+
+        Ok(map)
     }
 }

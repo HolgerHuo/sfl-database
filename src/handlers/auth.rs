@@ -409,7 +409,7 @@ pub async fn callback(
 
     // Use BASE_URL for frontend redirect
     let base_url =
-        std::env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+        std::env::var("BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:5173".to_string());
 
     // Encode the auth response as URL parameters
     let auth_data = serde_json::to_string(&AuthResponse {

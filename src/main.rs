@@ -137,7 +137,8 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
     .service(
         web::scope("/tags")
             .wrap(cache.clone())
-            .route("", web::get().to(handlers::tags::list_tags)),
+            .route("", web::get().to(handlers::tags::list_tags))
+            .route("/{id}", web::get().to(handlers::tags::get_tag)),
     )
     .service(
         web::scope("/news")

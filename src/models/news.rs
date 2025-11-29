@@ -29,8 +29,8 @@ pub struct News {
 pub struct NewsResponse {
     #[serde(flatten)]
     pub news: News,
-    #[serde(rename = "scholarIds")]
-    pub scholar_ids: Vec<String>,
+    #[serde(rename = "scholars")]
+    pub scholars: Vec<super::ScholarInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]

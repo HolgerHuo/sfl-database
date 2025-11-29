@@ -48,6 +48,23 @@ pub struct TagListItem {
 }
 
 #[derive(Debug, Serialize)]
+pub struct TagResponse {
+    #[serde(flatten)]
+    pub tag: Tag,
+    #[serde(rename = "scholars")]
+    pub scholars: Vec<super::ScholarInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagDetailResponse {
+    #[serde(flatten)]
+    pub tag: Tag,
+    #[serde(rename = "scholars")]
+    pub scholars: Vec<super::ScholarInfo>,
+    pub pagination: super::Pagination,
+}
+
+#[derive(Debug, Serialize)]
 pub struct TagListResponse {
-    pub data: Vec<Tag>,
+    pub data: Vec<TagResponse>,
 }
