@@ -95,7 +95,7 @@ export default function News() {
                       </p>
                     )}
                     <div className="flex items-center text-sm text-gray-500 space-x-1 mb-3">
-                      <span>{formatDate(item.publishedAt || item.createdAt)}</span>
+                      <span>{formatDate(item.publishDate || item.createdAt)}</span>
                       {item.source && <span>来源: {item.source}</span>}
                     </div>
                     
