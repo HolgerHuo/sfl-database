@@ -9,7 +9,7 @@ export default function Home() {
 
   useEffect(() => {
     loadFeaturedScholars();
-  }, [pageSize]);
+  }, []);
 
   const loadFeaturedScholars = async () => {
     try {
