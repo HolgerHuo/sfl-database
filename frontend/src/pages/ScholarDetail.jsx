@@ -133,7 +133,7 @@ export default function ScholarDetail() {
               {scholar.news.map((newsItem) => (
                 <Link
                   key={newsItem.id}
-                  to={`/news/${newsItem.id}`}
+                  to={newsItem.url}
                   className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
