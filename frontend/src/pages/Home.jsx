@@ -24,7 +24,7 @@ export default function Home() {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.getScholars({ featured: true, page_size: 10000000000000 });
+      const response = await api.getScholars({ featured: true, page_size: 20 });
       setFeaturedScholars(response.data || []);
     } catch (err) {
       setError(err.message);
