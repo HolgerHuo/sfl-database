@@ -30,12 +30,15 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to initialize database");
 
+    let cache_middleware = middleware::CacheMiddleware::new();
+
     let app_state = utils::AppState::new(
         db,
         jwt_secret,
         oidc_issuer_url,
         oidc_client_id,
         oidc_client_secret,
+        cache_middleware.clone(),
     )
     .await;
     log::info!("Application initialized");
@@ -62,7 +65,6 @@ async fn main() -> std::io::Result<()> {
     log::info!("Starting server at http://{}", bind_address);
 
     let auth_middleware = web::Data::new(middleware::AuthMiddleware);
-    let cache_middleware = middleware::CacheMiddleware::new();
 
     HttpServer::new(move || {
         let cors = Cors::default()
@@ -81,7 +83,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(auth_middleware.clone())
             .wrap(cors)
             .wrap(actix_web::middleware::Logger::default())
-            .configure(|cfg| configure_routes(cfg, cache_middleware.clone()))
+            .configure(|cfg| configure_routes(cfg, app_state.cache.clone()))
     })
     .bind(&bind_address)?
     .run()

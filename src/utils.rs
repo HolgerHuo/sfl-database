@@ -1,4 +1,5 @@
 use crate::db::Database;
+use crate::middleware::CacheMiddleware;
 use actix_web::{HttpResponse, error::ResponseError, http::StatusCode};
 use openidconnect::{ClientId, ClientSecret, IssuerUrl, reqwest};
 use serde::Serialize;
@@ -12,6 +13,7 @@ pub struct AppState {
     pub oidc_issuer_url: IssuerUrl,
     pub oidc_client_id: ClientId,
     pub oidc_client_secret: ClientSecret,
+    pub cache: CacheMiddleware,
 }
 
 impl AppState {
@@ -21,6 +23,7 @@ impl AppState {
         oidc_issuer_url: String,
         oidc_client_id: String,
         oidc_client_secret: String,
+        cache: CacheMiddleware,
     ) -> Self {
         let oidc_http_client = reqwest::ClientBuilder::new()
             .redirect(reqwest::redirect::Policy::none())
@@ -37,6 +40,7 @@ impl AppState {
             oidc_issuer_url,
             oidc_client_id,
             oidc_client_secret,
+            cache,
         }
     }
 }

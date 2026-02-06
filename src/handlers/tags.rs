@@ -71,12 +71,15 @@ pub async fn create_tag(
     let tag = app_state.db.create_tag(&input, &claims.user_id).await?;
     let (scholar_ids, _) = app_state.db.get_tag_scholars(&tag.id, None, None).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
-    
+
     let scholars: Vec<ScholarInfo> = scholar_ids
         .iter()
         .filter_map(|id| scholars_map.get(id).cloned())
         .collect();
-    
+
+    app_state.cache.invalidate_pattern("/api/tags").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::Created().json(TagResponse { tag, scholars }))
 }
 
@@ -97,12 +100,15 @@ pub async fn update_tag(
         .await?;
     let (scholar_ids, _) = app_state.db.get_tag_scholars(&tag.id, None, None).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
-    
+
     let scholars: Vec<ScholarInfo> = scholar_ids
         .iter()
         .filter_map(|id| scholars_map.get(id).cloned())
         .collect();
-    
+
+    app_state.cache.invalidate_pattern("/api/tags").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::Ok().json(TagResponse { tag, scholars }))
 }
 
@@ -116,5 +122,9 @@ pub async fn delete_tag(
 
     let tag_id = path.into_inner();
     app_state.db.delete_tag(&tag_id).await?;
+
+    app_state.cache.invalidate_pattern("/api/tags").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::NoContent().finish())
 }

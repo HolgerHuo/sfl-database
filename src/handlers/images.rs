@@ -9,7 +9,7 @@ use crate::models::ImageRequest;
 use crate::utils::{AppError, AppResult, AppState};
 
 const UPLOAD_DIR: &str = "./uploads/images";
-const MAX_FILE_SIZE: usize = 50 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE: usize = 50 * 1024 * 1024; // 50MB
 const ALLOWED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "svg"];
 
 pub async fn get_image(

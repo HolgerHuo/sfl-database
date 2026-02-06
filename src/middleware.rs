@@ -53,13 +53,14 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let app_state = req.app_data::<web::Data<AppState>>();
 
-        if app_state.is_none() {
-            return Box::pin(async move {
-                Err(AppError::InternalError("AppState not found".to_string()).into())
-            });
-        }
-
-        let jwt_secret = app_state.unwrap().jwt_secret.clone();
+        let jwt_secret = match app_state {
+            Some(state) => state.jwt_secret.clone(),
+            None => {
+                return Box::pin(async move {
+                    Err(AppError::InternalError("AppState not found".to_string()).into())
+                });
+            }
+        };
 
         let token = req
             .headers()
@@ -143,6 +144,13 @@ impl CacheMiddleware {
         Self {
             cache: Arc::new(cache),
         }
+    }
+
+    pub async fn invalidate_pattern(&self, pattern: &str) {
+        let pattern = pattern.to_string();
+        self.cache.invalidate_entries_if(move |key, _| {
+            key.starts_with(&pattern)
+        }).expect("Failed to invalidate cache");
     }
 
     fn generate_cache_key(req: &ServiceRequest) -> String {

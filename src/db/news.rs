@@ -76,6 +76,21 @@ impl super::Database {
         Ok(scholars.into_iter().map(|(id,)| id).collect())
     }
 
+    pub async fn get_news_scholars_batch(&self, news_ids: &[String]) -> AppResult<Vec<(String, String)>> {
+        if news_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let results: Vec<(String, String)> = sqlx::query_as(
+            "SELECT news, scholar FROM news_scholars WHERE news = ANY($1) ORDER BY news, created_at"
+        )
+        .bind(news_ids)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(results)
+    }
+
     pub async fn create_news(&self, request: &NewsRequest, created_by: &str) -> AppResult<News> {
         let id = cuid2::create_id();
         let now = Utc::now();

@@ -22,6 +22,10 @@ pub async fn create_identity(
         .db
         .create_identity(&input, &claims.user_id)
         .await?;
+
+    app_state.cache.invalidate_pattern("/api/identities").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::Created().json(identity))
 }
 
@@ -40,6 +44,10 @@ pub async fn update_identity(
         .db
         .update_identity(&identity_id, &input, &claims.user_id)
         .await?;
+
+    app_state.cache.invalidate_pattern("/api/identities").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::Ok().json(identity))
 }
 
@@ -53,5 +61,9 @@ pub async fn delete_identity(
 
     let identity_id = path.into_inner();
     app_state.db.delete_identity(&identity_id).await?;
+
+    app_state.cache.invalidate_pattern("/api/identities").await;
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+
     Ok(HttpResponse::NoContent().finish())
 }

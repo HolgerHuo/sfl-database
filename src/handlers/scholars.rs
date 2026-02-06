@@ -63,6 +63,9 @@ pub async fn create_scholar(
     let scholar = app_state.db.create_scholar(&input, &claims.user_id).await?;
     let scholar_response = app_state.db.get_scholar(&scholar.id).await?;
 
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+    app_state.cache.invalidate_pattern("/api/tags").await;
+
     Ok(HttpResponse::Created().json(scholar_response))
 }
 
@@ -81,6 +84,9 @@ pub async fn update_scholar(
         .update_scholar(&scholar_id, &input, &claims.user_id)
         .await?;
     let scholar_response = app_state.db.get_scholar(&scholar.id).await?;
+
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+    app_state.cache.invalidate_pattern("/api/tags").await;
 
     Ok(HttpResponse::Ok().json(scholar_response))
 }
