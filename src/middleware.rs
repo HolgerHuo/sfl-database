@@ -111,10 +111,28 @@ pub fn extract_claims(req: &actix_web::HttpRequest) -> Result<Claims, AppError> 
 }
 
 pub fn require_admin(claims: &Claims) -> Result<(), AppError> {
-    if !claims.admin {
+    if !claims.is_admin() {
         return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     Ok(())
+}
+
+pub fn require_moderator_or_admin(claims: &Claims) -> Result<(), AppError> {
+    if !claims.can_approve() {
+        return Err(AppError::Forbidden("Moderator or Admin access required".to_string()));
+    }
+    Ok(())
+}
+
+pub fn require_editor_or_above(_claims: &Claims) -> Result<(), AppError> {
+    // All roles (editor, moderator, admin) can access
+    Ok(())
+}
+
+pub fn can_modify_directly(claims: &Claims) -> bool {
+    // Only moderators and admins can modify content directly
+    // Editors must submit for approval
+    claims.can_approve()
 }
 
 pub fn validate_input<T: validator::Validate>(input: &T) -> Result<(), AppError> {
@@ -139,6 +157,7 @@ impl CacheMiddleware {
     pub fn new() -> Self {
         let cache = Cache::builder()
             .time_to_live(Duration::from_secs(60)) // 1 minute TTL
+            .support_invalidation_closures()
             .build();
 
         Self {

@@ -44,6 +44,27 @@ pub async fn update_user(
     require_admin(&claims)?;
 
     let user_id = path.into_inner();
+
+    // Prevent anyone from deactivating themselves
+    if user_id == claims.user_id && input.active == Some(false) {
+        return Err(crate::utils::AppError::BadRequest(
+            "Cannot deactivate your own account".to_string()
+        ));
+    }
+
     let user = app_state.db.update_user(&user_id, &input).await?;
     Ok(HttpResponse::Ok().json(user))
+}
+
+pub async fn delete_user(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+    req: HttpRequest,
+) -> AppResult<HttpResponse> {
+    let claims = extract_claims(&req)?;
+    require_admin(&claims)?;
+
+    let user_id = path.into_inner();
+    app_state.db.delete_user(&user_id).await?;
+    Ok(HttpResponse::NoContent().finish())
 }

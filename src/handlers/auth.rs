@@ -325,14 +325,14 @@ pub async fn callback(
             existing_user
         }
         None => {
-            log::info!("Creating new user (non-admin by default)");
-            // Create new user as non-admin by default
-            // Admin must promote user to admin to grant permissions
+            log::info!("Creating new user (editor role by default)");
+            // Create new user as editor by default
+            // Admin must promote user to moderator or admin to grant additional permissions
             let new_user = app_state
                 .db
-                .create_user(&sub, &email, name.as_deref(), false)
+                .create_user(&sub, &email, name.as_deref(), UserRole::Editor)
                 .await?;
-            log::info!("Created new user: {} (non-admin)", new_user.id);
+            log::info!("Created new user: {} (editor)", new_user.id);
             new_user
         }
     };
@@ -344,7 +344,7 @@ pub async fn callback(
     }
 
     // Generate session ID for session binding
-    let session_id = cuid2::create_id();
+    let _session_id = cuid2::create_id();
 
     // Generate JWT with session binding
     let now = Utc::now().timestamp();
@@ -353,7 +353,7 @@ pub async fn callback(
         sub: user.oidc_sub.clone(),
         user_id: user.id.clone(),
         email: user.email.clone(),
-        admin: user.admin,
+        role: user.role.clone(),
         exp: now + expires_in,
         iat: now,
     };
@@ -372,13 +372,13 @@ pub async fn callback(
     let refresh_token = cuid2::create_id();
 
     // Extract user agent and IP address for audit
-    let user_agent = req
+    let _user_agent = req
         .headers()
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
-    let ip_address = req
+    let _ip_address = req
         .connection_info()
         .realip_remote_addr()
         .map(|s| s.to_string());
@@ -428,7 +428,7 @@ pub async fn callback(
     );
 
     // Redirect to frontend with auth data
-    let redirect_url = format!("{}/admin/login?auth={}", base_url, auth_data_b64);
+    let redirect_url = format!("{}/auth/callback?auth={}", base_url, auth_data_b64);
 
     log::info!("Redirecting to frontend: {}", redirect_url);
 
@@ -482,7 +482,7 @@ pub async fn refresh(
         sub: user.oidc_sub.clone(),
         user_id: user.id.clone(),
         email: user.email.clone(),
-        admin: user.admin,
+        role: user.role.clone(),
         exp: now + JWT_ACCESS_TOKEN_EXPIRY_SECS,
         iat: now,
     };

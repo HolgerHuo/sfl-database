@@ -9,6 +9,17 @@ pub async fn list_identities(app_state: web::Data<AppState>) -> AppResult<HttpRe
     Ok(HttpResponse::Ok().json(IdentityListResponse { data: identities }))
 }
 
+pub async fn get_identity(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+    req: HttpRequest,
+) -> AppResult<HttpResponse> {
+    let _claims = extract_claims(&req)?;
+    let identity_id = path.into_inner();
+    let identity = app_state.db.get_identity(&identity_id).await?;
+    Ok(HttpResponse::Ok().json(identity))
+}
+
 pub async fn create_identity(
     app_state: web::Data<AppState>,
     input: web::Json<IdentityRequest>,

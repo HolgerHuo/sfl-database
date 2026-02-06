@@ -27,7 +27,7 @@ impl super::Database {
         let _ = &self.cleanup_old_tokens(user_id).await?;
 
         let refresh_token = sqlx::query_as::<_, RefreshToken>(
-            "INSERT INTO refresh_tokens (id, user, token_hash, expires_at, created_at)
+            "INSERT INTO refresh_tokens (id, account, token_hash, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *",
         )
@@ -78,7 +78,7 @@ impl super::Database {
     }
 
     pub async fn revoke_all_user_tokens(&self, user_id: &str) -> AppResult<()> {
-        sqlx::query("DELETE FROM refresh_tokens WHERE user = $1")
+        sqlx::query("DELETE FROM refresh_tokens WHERE account = $1")
             .bind(user_id)
             .execute(&self.pool)
             .await?;
@@ -88,7 +88,7 @@ impl super::Database {
 
     async fn cleanup_old_tokens(&self, user_id: &str) -> AppResult<()> {
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM refresh_tokens WHERE user = $1 AND expires_at > NOW()",
+            "SELECT COUNT(*) FROM refresh_tokens WHERE account = $1 AND expires_at > NOW()",
         )
         .bind(user_id)
         .fetch_one(&self.pool)
@@ -98,11 +98,11 @@ impl super::Database {
             let tokens_to_delete = count.0 - MAX_REFRESH_TOKENS_PER_USER as i64 + 1;
 
             sqlx::query(
-                "DELETE FROM refresh_tokens 
+                "DELETE FROM refresh_tokens
              WHERE id IN (
-                 SELECT id FROM refresh_tokens 
-                 WHERE user = $1 AND expires_at > NOW()
-                 ORDER BY created_at ASC 
+                 SELECT id FROM refresh_tokens
+                 WHERE account = $1 AND expires_at > NOW()
+                 ORDER BY created_at ASC
                  LIMIT $2
              )",
             )

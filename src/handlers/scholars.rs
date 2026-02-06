@@ -21,16 +21,22 @@ pub async fn list_scholars(
 pub async fn get_scholar(
     app_state: web::Data<AppState>,
     path: web::Path<String>,
+    _req: HttpRequest,
 ) -> AppResult<HttpResponse> {
     let scholar_id = path.into_inner();
-    let scholar_response = app_state.db.get_scholar(&scholar_id).await?;
+    let scholar_response = app_state.db.get_scholar_public(&scholar_id).await?;
 
-    if !scholar_response.reviewed {
-        return Err(AppError::NotFound(format!(
-            "Scholar with id {} not found",
-            scholar_id
-        )));
-    }
+    Ok(HttpResponse::Ok().json(scholar_response))
+}
+
+pub async fn get_scholar_admin(
+    app_state: web::Data<AppState>,
+    path: web::Path<String>,
+    req: HttpRequest,
+) -> AppResult<HttpResponse> {
+    let _claims = extract_claims(&req)?;
+    let scholar_id = path.into_inner();
+    let scholar_response = app_state.db.get_scholar(&scholar_id).await?;
 
     Ok(HttpResponse::Ok().json(scholar_response))
 }
@@ -91,22 +97,6 @@ pub async fn update_scholar(
     Ok(HttpResponse::Ok().json(scholar_response))
 }
 
-pub async fn unlock_scholar(
-    app_state: web::Data<AppState>,
-    path: web::Path<String>,
-    req: HttpRequest,
-) -> AppResult<HttpResponse> {
-    let claims = extract_claims(&req)?;
-    let scholar_id = path.into_inner();
-
-    app_state
-        .db
-        .unlock_scholar(&scholar_id, &claims.user_id)
-        .await?;
-
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "Lock released" })))
-}
-
 pub async fn get_scholar_history(
     app_state: web::Data<AppState>,
     path: web::Path<String>,
@@ -131,7 +121,7 @@ pub async fn get_scholar_history(
     }))
 }
 
-pub async fn force_unlock_scholar(
+pub async fn delete_scholar(
     app_state: web::Data<AppState>,
     path: web::Path<String>,
     req: HttpRequest,
@@ -140,7 +130,11 @@ pub async fn force_unlock_scholar(
     require_admin(&claims)?;
 
     let scholar_id = path.into_inner();
-    app_state.db.force_unlock_scholar(&scholar_id).await?;
+    app_state.db.delete_scholar(&scholar_id).await?;
 
-    Ok(HttpResponse::Ok().json(serde_json::json!({ "message": "Lock released" })))
+    app_state.cache.invalidate_pattern("/api/scholars").await;
+    app_state.cache.invalidate_pattern("/api/tags").await;
+    app_state.cache.invalidate_pattern("/api/news").await;
+
+    Ok(HttpResponse::NoContent().finish())
 }

@@ -2,7 +2,6 @@ use crate::models::*;
 use crate::utils::{AppError, AppResult};
 use chrono::Utc;
 use cuid2;
-use std::collections::HashMap;
 
 impl super::Database {
     pub async fn list_news(&self, query: &NewsQuery) -> AppResult<(Vec<News>, i64)> {

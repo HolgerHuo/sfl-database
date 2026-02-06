@@ -5,12 +5,34 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::middleware::extract_claims;
-use crate::models::ImageRequest;
+use crate::models::Pagination;
 use crate::utils::{AppError, AppResult, AppState};
 
 const UPLOAD_DIR: &str = "./uploads/images";
 const MAX_FILE_SIZE: usize = 50 * 1024 * 1024; // 50MB
 const ALLOWED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "svg"];
+
+pub async fn list_images(
+    app_state: web::Data<AppState>,
+    query: web::Query<crate::models::PaginationParams>,
+    req: HttpRequest,
+) -> AppResult<HttpResponse> {
+    let _claims = extract_claims(&req)?;
+
+    query.validate().map_err(|e| AppError::ValidationError(e))?;
+
+    let (images, total) = app_state
+        .db
+        .list_images(query.page, query.page_size)
+        .await?;
+
+    let pagination = Pagination::new(query.page, query.page_size, total);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "data": images,
+        "pagination": pagination
+    })))
+}
 
 pub async fn get_image(
     app_state: web::Data<AppState>,
@@ -50,7 +72,6 @@ pub async fn delete_image(
 pub async fn upload_image(
     app_state: web::Data<AppState>,
     req: HttpRequest,
-    input: web::Json<ImageRequest>,
     mut payload: Multipart,
 ) -> AppResult<HttpResponse> {
     let claims = extract_claims(&req)?;
@@ -144,7 +165,11 @@ pub async fn upload_image(
         return Err(AppError::BadRequest("No file uploaded".to_string()));
     }
 
-    let image = app_state.db.create_image(&input, &claims.user_id).await?;
+    // Create image record in database
+    let image = app_state
+        .db
+        .create_image_record(&filename, &mime_type, file_size as i32, &claims.user_id)
+        .await?;
 
     Ok(HttpResponse::Created().json(image))
 }

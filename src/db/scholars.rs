@@ -12,11 +12,12 @@ impl super::Database {
         query: &'a ScholarQuery,
         public: bool,
     ) {
+        // Always filter out deleted scholars
+        builder.push(" AND s.deleted = false");
+
+        // For public queries, only show visible scholars
         if public {
-            builder.push(" AND s.reviewed = true");
-        } else if let Some(reviewed) = query.reviewed {
-            builder.push(" AND s.reviewed = ");
-            builder.push_bind(reviewed);
+            builder.push(" AND s.visible = true");
         }
 
         if let Some(identities) = &query.identities {
@@ -82,12 +83,12 @@ impl super::Database {
         }
 
         let mut query_builder = QueryBuilder::new(
-            "SELECT s.id, s.name, s.gender, s.field_of_research, s.year_of_birth, 
-                    s.image, s.featured, s.reviewed, s.identity, s.version,
+            "SELECT s.id, s.name, s.gender, s.field_of_research, s.year_of_birth,
+                    s.image, s.featured, s.visible, s.deleted, s.identity, s.version,
                     s.created_at, s.updated_at,
-                    i.filename as image_filename 
-             FROM scholars s 
-             LEFT JOIN images i ON s.image = i.id 
+                    i.filename as image_filename
+             FROM scholars s
+             LEFT JOIN images i ON s.image = i.id
              WHERE 1=1",
         );
         Self::build_scholar_filters(&mut query_builder, query, public);
@@ -130,7 +131,8 @@ impl super::Database {
                 year_of_birth: row.get("year_of_birth"),
                 image: row.get("image"),
                 featured: row.get("featured"),
-                reviewed: row.get("reviewed"),
+                visible: row.get("visible"),
+                deleted: row.get("deleted"),
                 identity: row.get("identity"),
                 version: row.get("version"),
                 created_at: row.get("created_at"),
@@ -182,7 +184,7 @@ impl super::Database {
 
     pub async fn get_scholar(&self, id: &str) -> AppResult<ScholarResponse> {
         let row = sqlx::query(
-            "SELECT s.*, 
+            "SELECT s.*,
                     i.id as identity_id, i.name as identity_name, i.description as identity_description,
                     i.display_order as identity_display_order, i.created_by as identity_created_by,
                     i.updated_by as identity_updated_by, i.created_at as identity_created_at,
@@ -198,6 +200,33 @@ impl super::Database {
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Scholar with id {} not found", id)))?;
 
+        self.build_scholar_response(row).await
+    }
+
+    pub async fn get_scholar_public(&self, id: &str) -> AppResult<ScholarResponse> {
+        let row = sqlx::query(
+            "SELECT s.*,
+                    i.id as identity_id, i.name as identity_name, i.description as identity_description,
+                    i.display_order as identity_display_order, i.created_by as identity_created_by,
+                    i.updated_by as identity_updated_by, i.created_at as identity_created_at,
+                    i.updated_at as identity_updated_at, i.archived_at as identity_archived_at,
+                    img.filename as image_filename
+             FROM scholars s
+             INNER JOIN identities i ON s.identity = i.id
+             LEFT JOIN images img ON s.image = img.id
+             WHERE s.id = $1 AND s.visible = true AND s.deleted = false"
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("Scholar with id {} not found", id)))?;
+
+        self.build_scholar_response(row).await
+    }
+
+    async fn build_scholar_response(&self, row: sqlx::postgres::PgRow) -> AppResult<ScholarResponse> {
+        use sqlx::Row;
+
         let scholar = Scholar {
             id: row.get("id"),
             name: row.get("name"),
@@ -208,11 +237,10 @@ impl super::Database {
             introduction: row.get("introduction"),
             social_influence: row.get("social_influence"),
             featured: row.get("featured"),
-            reviewed: row.get("reviewed"),
+            visible: row.get("visible"),
+            deleted: row.get("deleted"),
             identity: row.get("identity"),
             version: row.get("version"),
-            locked_by: row.get("locked_by"),
-            locked_at: row.get("locked_at"),
             created_by: row.get("created_by"),
             updated_by: row.get("updated_by"),
             archived_at: row.get("archived_at"),
@@ -233,12 +261,12 @@ impl super::Database {
         };
 
         let tags = sqlx::query_as::<_, Tag>(
-            "SELECT t.* FROM tags t 
-             INNER JOIN scholar_tags st ON t.id = st.tag 
-             WHERE st.scholar = $1 
+            "SELECT t.* FROM tags t
+             INNER JOIN scholar_tags st ON t.id = st.tag
+             WHERE st.scholar = $1
              ORDER BY t.display_order",
         )
-        .bind(id)
+        .bind(&scholar.id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -248,7 +276,7 @@ impl super::Database {
              WHERE ns.scholar = $1
              ORDER BY n.publish_date DESC",
         )
-        .bind(id)
+        .bind(&scholar.id)
         .fetch_all(&self.pool)
         .await?;
 
@@ -265,7 +293,8 @@ impl super::Database {
             introduction: scholar.introduction,
             social_influence: scholar.social_influence,
             featured: scholar.featured,
-            reviewed: scholar.reviewed,
+            visible: scholar.visible,
+            deleted: scholar.deleted,
             version: scholar.version,
             identity,
             tags,
@@ -316,10 +345,10 @@ impl super::Database {
 
         let scholar = sqlx::query_as::<_, Scholar>(
             "INSERT INTO scholars (
-            id, name, gender, field_of_research, year_of_birth, 
+            id, name, gender, field_of_research, year_of_birth,
             image, introduction, social_influence, identity,
-            reviewed, version, created_by, updated_by, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, 1, $10, $10, $11, $11)
+            featured, visible, version, created_by, updated_by, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $12, $13, $13)
         RETURNING *",
         )
         .bind(&id)
@@ -331,6 +360,8 @@ impl super::Database {
         .bind(&request.introduction)
         .bind(&request.social_influence)
         .bind(&request.identity)
+        .bind(request.featured)
+        .bind(request.visible)
         .bind(created_by)
         .bind(now)
         .fetch_one(&mut *tx)
@@ -353,82 +384,6 @@ impl super::Database {
         Ok(scholar)
     }
 
-    pub async fn lock_scholar(
-        &self,
-        scholar_id: &str,
-        lock_user: &str,
-    ) -> AppResult<(i32, chrono::DateTime<Utc>)> {
-        let now = Utc::now();
-        let lock_until = now + chrono::Duration::minutes(30);
-        let lock_expiry = now - chrono::Duration::minutes(30);
-
-        let result: Option<(i32, Option<String>, Option<chrono::DateTime<Utc>>)> = sqlx::query_as(
-            "UPDATE scholars 
-             SET locked_by = $1, locked_at = $2 
-             WHERE id = $3 
-             AND (locked_by IS NULL OR locked_by = $1 OR locked_at < $4)
-             RETURNING version, 
-                       (SELECT locked_by FROM scholars WHERE id = $3 FOR UPDATE SKIP LOCKED) as old_locked_by,
-                       (SELECT locked_at FROM scholars WHERE id = $3 FOR UPDATE SKIP LOCKED) as old_locked_at",
-        )
-        .bind(lock_user)
-        .bind(now)
-        .bind(scholar_id)
-        .bind(lock_expiry)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        match result {
-            Some((version, _, _)) => Ok((version, lock_until)),
-            None => {
-                let lock_info: Option<(Option<String>, Option<chrono::DateTime<Utc>>)> =
-                    sqlx::query_as(
-                        "SELECT locked_by, locked_at FROM scholars WHERE id = $1"
-                    )
-                    .bind(scholar_id)
-                    .fetch_optional(&self.pool)
-                    .await?;
-
-                match lock_info {
-                    Some((Some(locked_by), Some(locked_at))) => Err(AppError::Conflict(format!(
-                        "Scholar is locked by {} until {}",
-                        locked_by,
-                        locked_at + chrono::Duration::minutes(30)
-                    ))),
-                    Some(_) => {
-                        Err(AppError::Conflict("Unable to acquire lock".to_string()))
-                    }
-                    None => Err(AppError::NotFound(format!(
-                        "Scholar with id {} not found",
-                        scholar_id
-                    ))),
-                }
-            }
-        }
-    }
-
-    pub async fn unlock_scholar(&self, scholar_id: &str, user_id: &str) -> AppResult<()> {
-        sqlx::query(
-            "UPDATE scholars SET locked_by = NULL, locked_at = NULL 
-         WHERE id = $1 AND locked_by = $2",
-        )
-        .bind(scholar_id)
-        .bind(user_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn force_unlock_scholar(&self, scholar_id: &str) -> AppResult<()> {
-        sqlx::query("UPDATE scholars SET locked_by = NULL, locked_at = NULL WHERE id = $1")
-            .bind(scholar_id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn update_scholar(
         &self,
         scholar_id: &str,
@@ -439,8 +394,8 @@ impl super::Database {
 
         let mut tx = self.pool.begin().await?;
 
-        let current: (i32, Option<String>) =
-            sqlx::query_as("SELECT version, locked_by FROM scholars WHERE id = $1")
+        let current: (i32,) =
+            sqlx::query_as("SELECT version FROM scholars WHERE id = $1")
                 .bind(scholar_id)
                 .fetch_optional(&mut *tx)
                 .await?
@@ -455,21 +410,12 @@ impl super::Database {
             )));
         }
 
-        if let Some(locked_by) = current.1 {
-            if locked_by != user_id {
-                return Err(AppError::Conflict(
-                    "Scholar is locked by another user".to_string(),
-                ));
-            }
-        }
-
         let scholar = sqlx::query_as::<_, Scholar>(
-            "UPDATE scholars SET 
+            "UPDATE scholars SET
             name = $1, gender = $2, field_of_research = $3, year_of_birth = $4,
             image = $5, introduction = $6, social_influence = $7, identity = $8,
-            reviewed = $9, featured = $10,
-            version = version + 1, updated_by = $11, updated_at = $12,
-            locked_by = NULL, locked_at = NULL
+            featured = $9, visible = $10,
+            version = version + 1, updated_by = $11, updated_at = $12
          WHERE id = $13
          RETURNING *",
         )
@@ -481,8 +427,8 @@ impl super::Database {
         .bind(&request.introduction)
         .bind(&request.social_influence)
         .bind(&request.identity)
-        .bind(&request.reviewed)
         .bind(&request.featured)
+        .bind(&request.visible)
         .bind(user_id)
         .bind(now)
         .bind(scholar_id)
@@ -555,12 +501,28 @@ impl super::Database {
             "SELECT s.id, s.name, i.filename as image_filename
              FROM scholars s
              LEFT JOIN images i ON s.image = i.id
-             WHERE s.id = ANY($1)"
+             WHERE s.id = ANY($1) AND s.visible = true AND s.deleted = false"
         )
         .bind(scholar_ids)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(scholars.into_iter().map(|s| (s.id.clone(), s)).collect())
+    }
+
+    pub async fn delete_scholar(&self, scholar_id: &str) -> AppResult<()> {
+        let result = sqlx::query("UPDATE scholars SET deleted = true WHERE id = $1")
+            .bind(scholar_id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!(
+                "Scholar with id {} not found",
+                scholar_id
+            )));
+        }
+
+        Ok(())
     }
 }

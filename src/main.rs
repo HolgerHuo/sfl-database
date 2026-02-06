@@ -160,16 +160,9 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
                 web::scope("/scholars")
                     .route("", web::get().to(handlers::scholars::list_all_scholars))
                     .route("", web::post().to(handlers::scholars::create_scholar))
-                    .route("/{id}", web::get().to(handlers::scholars::get_scholar))
+                    .route("/{id}", web::get().to(handlers::scholars::get_scholar_admin))
                     .route("/{id}", web::put().to(handlers::scholars::update_scholar))
-                    .route(
-                        "/{id}/unlock",
-                        web::post().to(handlers::scholars::unlock_scholar),
-                    )
-                    .route(
-                        "/{id}/force-unlock",
-                        web::post().to(handlers::scholars::force_unlock_scholar),
-                    )
+                    .route("/{id}", web::delete().to(handlers::scholars::delete_scholar))
                     .route(
                         "/{id}/history",
                         web::get().to(handlers::scholars::get_scholar_history),
@@ -187,6 +180,7 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
                 web::scope("/tags")
                     .route("", web::get().to(handlers::tags::list_tags))
                     .route("", web::post().to(handlers::tags::create_tag))
+                    .route("/{id}", web::get().to(handlers::tags::get_tag))
                     .route("/{id}", web::put().to(handlers::tags::update_tag))
                     .route("/{id}", web::delete().to(handlers::tags::delete_tag)),
             )
@@ -194,6 +188,7 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
                 web::scope("/identities")
                     .route("", web::get().to(handlers::identities::list_identities))
                     .route("", web::post().to(handlers::identities::create_identity))
+                    .route("/{id}", web::get().to(handlers::identities::get_identity))
                     .route("/{id}", web::put().to(handlers::identities::update_identity))
                     .route(
                         "/{id}",
@@ -204,10 +199,12 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
                 web::scope("/users")
                     .route("", web::get().to(handlers::users::list_users))
                     .route("/{id}", web::get().to(handlers::users::get_user))
-                    .route("/{id}", web::put().to(handlers::users::update_user)),
+                    .route("/{id}", web::put().to(handlers::users::update_user))
+                    .route("/{id}", web::delete().to(handlers::users::delete_user)),
             )
             .service(
                 web::scope("/images")
+                    .route("", web::get().to(handlers::images::list_images))
                     .route("/upload", web::post().to(handlers::images::upload_image))
                     .route("/{id}", web::get().to(handlers::images::get_image))
                     .route("/{id}", web::delete().to(handlers::images::delete_image)),

@@ -5,6 +5,22 @@ use crate::models::*;
 use crate::utils::{AppError, AppResult};
 
 impl super::Database {
+    pub async fn list_images(&self, page: i64, page_size: i64) -> AppResult<(Vec<Image>, i64)> {
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM images")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let images = sqlx::query_as::<_, Image>(
+            "SELECT * FROM images ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+        )
+        .bind(page_size)
+        .bind((page - 1) * page_size)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok((images, total.0))
+    }
+
     pub async fn get_image(&self, id: &str) -> AppResult<Image> {
         sqlx::query_as::<_, Image>("SELECT * FROM images WHERE id = $1")
             .bind(id)
@@ -30,6 +46,33 @@ impl super::Database {
         .bind(&request.filename)
         .bind(&request.mime_type)
         .bind(request.size_bytes)
+        .bind(uploaded_by)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(image)
+    }
+
+    pub async fn create_image_record(
+        &self,
+        filename: &str,
+        mime_type: &str,
+        size_bytes: i32,
+        uploaded_by: &str,
+    ) -> AppResult<Image> {
+        let id = cuid2::create_id();
+        let now = Utc::now();
+
+        let image = sqlx::query_as::<_, Image>(
+            "INSERT INTO images (id, filename, mime_type, size_bytes, uploaded_by, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $6)
+            RETURNING *"
+        )
+        .bind(&id)
+        .bind(filename)
+        .bind(mime_type)
+        .bind(size_bytes)
         .bind(uploaded_by)
         .bind(now)
         .fetch_one(&self.pool)

@@ -60,7 +60,7 @@ pub async fn get_news(
     let news = app_state.db.get_news(&news_id).await?;
     let scholar_ids = app_state.db.get_news_scholars(&news_id).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
-    
+
     let scholars: Vec<ScholarInfo> = scholar_ids
         .iter()
         .filter_map(|id| scholars_map.get(id).cloned())

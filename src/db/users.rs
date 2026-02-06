@@ -10,9 +10,9 @@ impl super::Database {
         builder: &mut QueryBuilder<'a, sqlx::Postgres>,
         params: &'a UserQueryParams,
     ) {
-        if let Some(admin) = params.admin {
-            builder.push(" AND admin = ");
-            builder.push_bind(admin);
+        if let Some(role) = &params.role {
+            builder.push(" AND role = ");
+            builder.push_bind(role);
         }
 
         if let Some(active) = params.active {
@@ -23,8 +23,8 @@ impl super::Database {
 
     pub async fn get_user(&self, id: &str) -> AppResult<User> {
         let user = sqlx::query_as::<_, User>(
-            "SELECT id, oidc_sub, email, name, admin, active, last_login, created_at, updated_at 
-             FROM users 
+            "SELECT id, oidc_sub, email, name, role, active, last_login, created_at, updated_at
+             FROM users
              WHERE id = $1"
         )
             .bind(id)
@@ -37,8 +37,8 @@ impl super::Database {
 
     pub async fn get_user_by_oidc_sub(&self, oidc_sub: &str) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
-            "SELECT id, oidc_sub, email, name, admin, active, last_login, created_at, updated_at 
-             FROM users 
+            "SELECT id, oidc_sub, email, name, role, active, last_login, created_at, updated_at
+             FROM users
              WHERE oidc_sub = $1"
         )
             .bind(oidc_sub)
@@ -53,13 +53,13 @@ impl super::Database {
         oidc_sub: &str,
         email: &str,
         name: Option<&str>,
-        admin: bool,
+        role: UserRole,
     ) -> AppResult<User> {
         let id = cuid2::create_id();
         let now = Utc::now();
 
         let user = sqlx::query_as::<_, User>(
-            "INSERT INTO users (id, oidc_sub, email, name, admin, active, created_at, updated_at)
+            "INSERT INTO users (id, oidc_sub, email, name, role, active, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, false, $6, $6)
          RETURNING *",
         )
@@ -67,7 +67,7 @@ impl super::Database {
         .bind(oidc_sub)
         .bind(email)
         .bind(name)
-        .bind(admin)
+        .bind(&role)
         .bind(now)
         .fetch_one(&self.pool)
         .await?;
@@ -103,8 +103,8 @@ impl super::Database {
         }
 
         let mut query_builder = QueryBuilder::new(
-            "SELECT id, oidc_sub, email, name, admin, active, last_login, created_at, updated_at 
-             FROM users 
+            "SELECT id, oidc_sub, email, name, role, active, last_login, created_at, updated_at
+             FROM users
              WHERE 1=1"
         );
         Self::build_user_filters(&mut query_builder, params);
@@ -123,14 +123,14 @@ impl super::Database {
         let now = Utc::now();
 
         let user = sqlx::query_as::<_, User>(
-            "UPDATE users 
-             SET admin = COALESCE($1, admin),
+            "UPDATE users
+             SET role = COALESCE($1, role),
                  active = COALESCE($2, active),
                  updated_at = $3
-             WHERE id = $4 
-             RETURNING id, oidc_sub, email, name, admin, active, last_login, created_at, updated_at"
+             WHERE id = $4
+             RETURNING id, oidc_sub, email, name, role, active, last_login, created_at, updated_at"
         )
-        .bind(input.admin)
+        .bind(&input.role)
         .bind(input.active)
         .bind(now)
         .bind(user_id)
@@ -139,5 +139,36 @@ impl super::Database {
         .ok_or_else(|| AppError::NotFound(format!("User with id {} not found", user_id)))?;
 
         Ok(user)
+    }
+
+    pub async fn get_users_info(&self, user_ids: &[String]) -> AppResult<std::collections::HashMap<String, UserInfo>> {
+        if user_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let users: Vec<UserInfo> = sqlx::query_as(
+            "SELECT id, email, name FROM users WHERE id = ANY($1)"
+        )
+        .bind(user_ids)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(users.into_iter().map(|u| (u.id.clone(), u)).collect())
+    }
+
+    pub async fn delete_user(&self, user_id: &str) -> AppResult<()> {
+        let result = sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!(
+                "User with id {} not found",
+                user_id
+            )));
+        }
+
+        Ok(())
     }
 }

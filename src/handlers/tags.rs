@@ -17,7 +17,7 @@ pub async fn get_tag(
     let tag = app_state.db.get_tag(&tag_id).await?;
     let (scholar_ids, total) = app_state.db.get_tag_scholars(&tag_id, Some(query.page), Some(query.page_size)).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
-    
+
     let scholars: Vec<ScholarInfo> = scholar_ids
         .iter()
         .filter_map(|id| scholars_map.get(id).cloned())
@@ -40,9 +40,9 @@ pub async fn list_tags(app_state: web::Data<AppState>) -> AppResult<HttpResponse
     }
     all_scholar_ids.sort();
     all_scholar_ids.dedup();
-    
+
     let scholars_info_map = app_state.db.get_scholars_info(&all_scholar_ids).await?;
-    
+
     let responses: Vec<TagResponse> = tags
         .into_iter()
         .map(|tag| {
@@ -68,7 +68,13 @@ pub async fn create_tag(
     require_admin(&claims)?;
     validate_input(&*input)?;
 
-    let tag = app_state.db.create_tag(&input, &claims.user_id).await?;
+    // Strip # from color if present
+    let mut tag_request = input.into_inner();
+    if let Some(ref color) = tag_request.color {
+        tag_request.color = Some(color.trim_start_matches('#').to_string());
+    }
+
+    let tag = app_state.db.create_tag(&tag_request, &claims.user_id).await?;
     let (scholar_ids, _) = app_state.db.get_tag_scholars(&tag.id, None, None).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;
 
@@ -93,10 +99,16 @@ pub async fn update_tag(
     require_admin(&claims)?;
     validate_input(&*input)?;
 
+    // Strip # from color if present
+    let mut tag_request = input.into_inner();
+    if let Some(ref color) = tag_request.color {
+        tag_request.color = Some(color.trim_start_matches('#').to_string());
+    }
+
     let tag_id = path.into_inner();
     let tag = app_state
         .db
-        .update_tag(&tag_id, &input, &claims.user_id)
+        .update_tag(&tag_id, &tag_request, &claims.user_id)
         .await?;
     let (scholar_ids, _) = app_state.db.get_tag_scholars(&tag.id, None, None).await?;
     let scholars_map = app_state.db.get_scholars_info(&scholar_ids).await?;

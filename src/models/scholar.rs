@@ -66,13 +66,10 @@ pub struct Scholar {
     #[serde(rename = "socialInfluence")]
     pub social_influence: String,
     pub featured: bool,
-    pub reviewed: bool,
     pub identity: String,
+    pub visible: bool,
+    pub deleted: bool,
     pub version: i32,
-    #[serde(rename = "lockedBy")]
-    pub locked_by: Option<String>,
-    #[serde(rename = "lockedAt")]
-    pub locked_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "createdBy")]
     pub created_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", rename = "updatedBy")]
@@ -101,7 +98,8 @@ pub struct ScholarResponse {
     #[serde(rename = "socialInfluence")]
     pub social_influence: String,
     pub featured: bool,
-    pub reviewed: bool,
+    pub visible: bool,
+    pub deleted: bool,
     pub version: i32,
     pub identity: Identity,
     pub tags: Vec<Tag>,
@@ -132,8 +130,8 @@ pub struct ScholarRequest {
     #[validate(length(min = 1))]
     pub social_influence: String,
     pub identity: String,
-    pub reviewed: bool,
     pub featured: bool,
+    pub visible: bool,
     #[serde(rename = "tagIds", default)]
     pub tag_ids: Vec<String>,
     pub version: i32,
@@ -161,7 +159,6 @@ pub struct ScholarQuery {
     pub sort: String,
     #[serde(default = "default_order")]
     pub order: String,
-    pub reviewed: Option<bool>,
 }
 
 fn default_sort() -> String {
@@ -183,7 +180,8 @@ pub struct ScholarListItem {
     pub year_of_birth: i32,
     pub image: Option<String>,
     pub featured: bool,
-    pub reviewed: bool,
+    pub visible: bool,
+    pub deleted: bool,
     pub identity: String,
     pub version: i32,
     #[serde(rename = "createdAt")]
