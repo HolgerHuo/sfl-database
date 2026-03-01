@@ -70,12 +70,12 @@ export default function ScholarDetail() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Header card */}
         <div className="md:flex">
-          <div className="md:flex-shrink-0 w-full md:w-56">
-            <div className="aspect-[3/4] md:h-full">
+          <div className="w-full md:max-w-xs mx-auto md:mx-0 md:flex-shrink-0 md:w-64 lg:w-72">
+            <div className="aspect-[3/4] overflow-hidden">
               <ImageWithFallback
                 src={scholar.imageFilename ? `/uploads/images/${scholar.imageFilename}` : null}
                 alt={scholar.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover object-center"
               />
             </div>
           </div>
