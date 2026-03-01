@@ -1,22 +1,96 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
+import ImageWithFallback from '../components/ImageWithFallback';
+
+const CARD_W = 160; // w-40 = 10rem
+const GAP = 16;     // gap-4 = 1rem
+
+function ScholarScrollRow({ scholars }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return;
+
+    const snap = () => {
+      const avail = parent.clientWidth;
+      const n = Math.max(1, Math.floor((avail + GAP) / (CARD_W + GAP)));
+      el.style.maxWidth = `${n * CARD_W + (n - 1) * GAP}px`;
+    };
+
+    snap();
+    const ro = new ResizeObserver(snap);
+    ro.observe(parent);
+    return () => ro.disconnect();
+  }, [scholars]);
+
+  return (
+    <div className="overflow-x-auto scrollbar-hide mx-auto" ref={containerRef}>
+      <div className="flex w-max flex-nowrap gap-4 pb-2">
+        {scholars.map((scholar) => (
+          <Link
+            key={scholar.id}
+            to={`/scholars/${scholar.id}`}
+            className="block w-40 flex-shrink-0 group"
+          >
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden group-hover:shadow-md group-hover:-translate-y-0.5 transition-all duration-200 h-full">
+              <div className="aspect-[3/4] overflow-hidden bg-gray-100">
+                <ImageWithFallback
+                  src={scholar.imageFilename ? `/uploads/images/${scholar.imageFilename}` : null}
+                  alt={scholar.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+              <div className="p-3">
+                <h4 className="text-sm font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                  {scholar.name}
+                </h4>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
-  const [featuredScholars, setFeaturedScholars] = useState([]);
+  const [featuredTags, setFeaturedTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadFeaturedScholars();
+    loadFeaturedTags();
   }, []);
 
-  const loadFeaturedScholars = async () => {
+  const getRandomScholars = (scholars, limit = 12) => {
+    if (!Array.isArray(scholars) || scholars.length === 0) {
+      return [];
+    }
+
+    const copied = [...scholars];
+    for (let i = copied.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copied[i], copied[j]] = [copied[j], copied[i]];
+    }
+    return copied.slice(0, limit);
+  };
+
+  const loadFeaturedTags = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.getScholars({ featured: true, page_size: 20 });
-      setFeaturedScholars(response.data || []);
+      const response = await api.getTags({ featured: true });
+      const tags = (response.data || []).map((tag) => ({
+        ...tag,
+        randomScholars: getRandomScholars(tag.scholars),
+      }));
+      setFeaturedTags(tags);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -24,26 +98,10 @@ export default function Home() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-gray-600">加载中...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-red-600">错误: {error}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <div className="bg-gradient-to-b from-blue-50 to-white py-16">
+      <div className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
             人物数据库
@@ -54,57 +112,42 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Featured Scholars Section */}
+      {/* Featured Tags Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">精选人物</h2>
-        </div>
+        {/* <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">精选标签</h2>
+        </div>*/}
 
-        {featuredScholars.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">暂无精选人物</p>
-          </div>
+        {loading ? (
+          <LoadingSpinner />
+        ) : error ? (
+          <ErrorState message={error} onRetry={loadFeaturedTags} />
+        ) : featuredTags.length === 0 ? (
+          <EmptyState title="暂无精选标签" description="管理员尚未设置首页推荐标签" />
         ) : (
-          <div className="overflow-x-auto scrollbar-hide mb-8">
-            <div className="flex gap-6 pb-4">
-              {featuredScholars.map((scholar) => (
-                <Link 
-                  key={scholar.id} 
-                  to={`/scholars/${scholar.id}`} 
-                  className="flex-shrink-0 w-56 block"
-                >
-                  <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full">
-                    <div className="aspect-[3/4] overflow-hidden bg-gray-100">
-                      <img
-                        src={`/uploads/images/${scholar.imageFilename}`}
-                        alt={scholar.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">{scholar.name}</h3>
-                      {scholar.tags && scholar.tags.length > 0 && (
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                          {scholar.tags.slice(0, 2).map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap flex-shrink-0"
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                          {scholar.tags.length > 2 && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0">
-                              +{scholar.tags.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+          <div className="space-y-10 mb-8">
+            {featuredTags.map((tag) => (
+              <div key={tag.id}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xl font-semibold text-gray-900">{tag.name}</h3>
+                  <Link
+                    to={`/tags/${tag.id}`}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    查看标签
+                  </Link>
+                </div>
+                {tag.description && (
+                  <p className="text-sm text-gray-500 mb-4">{tag.description}</p>
+                )}
+
+                {tag.randomScholars.length === 0 ? (
+                  <div className="text-sm text-gray-400">该标签暂无人物</div>
+                ) : (
+                  <ScholarScrollRow scholars={tag.randomScholars} />
+                )}
+              </div>
+            ))}
           </div>
         )}
 
@@ -134,3 +177,4 @@ export default function Home() {
     </div>
   );
 }
+

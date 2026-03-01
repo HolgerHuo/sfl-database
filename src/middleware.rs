@@ -117,22 +117,11 @@ pub fn require_admin(claims: &Claims) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn require_moderator_or_admin(claims: &Claims) -> Result<(), AppError> {
-    if !claims.can_approve() {
-        return Err(AppError::Forbidden("Moderator or Admin access required".to_string()));
+pub fn require_ai_access(claims: &Claims) -> Result<(), AppError> {
+    if !claims.role.can_access_ai_features() {
+        return Err(AppError::Forbidden("Editor or higher permission required to access AI features".to_string()));
     }
     Ok(())
-}
-
-pub fn require_editor_or_above(_claims: &Claims) -> Result<(), AppError> {
-    // All roles (editor, moderator, admin) can access
-    Ok(())
-}
-
-pub fn can_modify_directly(claims: &Claims) -> bool {
-    // Only moderators and admins can modify content directly
-    // Editors must submit for approval
-    claims.can_approve()
 }
 
 pub fn validate_input<T: validator::Validate>(input: &T) -> Result<(), AppError> {

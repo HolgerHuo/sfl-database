@@ -7,6 +7,7 @@ mod utils;
 
 use actix_cors::Cors;
 use actix_files as fs;
+use actix_web::http::header;
 use actix_web::{App, HttpResponse, HttpServer, web};
 use dotenvy::dotenv;
 use std::env;
@@ -22,6 +23,7 @@ async fn main() -> std::io::Result<()> {
     let host = env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let base_url = env::var("BASE_URL").unwrap_or_else(|_| format!("http://{}:{}", host, port));
+    let background_url = env::var("BACKGROUND_URL").unwrap_or_default();
     let oidc_issuer_url = env::var("OIDC_ISSUER_URL").expect("OIDC_ISSUER_URL must be set");
     let oidc_client_id = env::var("OIDC_CLIENT_ID").expect("OIDC_CLIENT_ID must be set");
     let oidc_client_secret =
@@ -81,6 +83,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .app_data(auth_middleware.clone())
+            .app_data(web::Data::new(background_url.clone()))
             .wrap(cors)
             .wrap(actix_web::middleware::Logger::default())
             .configure(|cfg| configure_routes(cfg, app_state.cache.clone()))
@@ -92,6 +95,7 @@ async fn main() -> std::io::Result<()> {
 
 fn configure_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMiddleware) {
     cfg.route("/healthz", web::get().to(health_check))
+        .route("/api/background", web::get().to(background_redirect))
         .service(web::scope("/api").configure(|api_cfg| configure_api_routes(api_cfg, cache)))
         .service(
             fs::Files::new("/uploads", "./uploads")
@@ -120,6 +124,16 @@ async fn health_check(app_state: web::Data<utils::AppState>) -> HttpResponse {
             HttpResponse::ServiceUnavailable().body("Database unavailable")
         }
     }
+}
+
+async fn background_redirect(background_url: web::Data<String>) -> HttpResponse {
+    if background_url.is_empty() {
+        return HttpResponse::NotFound().body("BACKGROUND_URL is not configured");
+    }
+
+    HttpResponse::Found()
+        .append_header((header::LOCATION, background_url.as_str()))
+        .finish()
 }
 
 fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMiddleware) {
@@ -208,6 +222,12 @@ fn configure_api_routes(cfg: &mut web::ServiceConfig, cache: middleware::CacheMi
                     .route("/upload", web::post().to(handlers::images::upload_image))
                     .route("/{id}", web::get().to(handlers::images::get_image))
                     .route("/{id}", web::delete().to(handlers::images::delete_image)),
+            )
+            .service(
+                web::scope("/rag")
+                    .route("/embed", web::post().to(handlers::rag::batch_embed_scholars))
+                    .route("/search", web::post().to(handlers::rag::rag_search_authenticated))
+                    .route("/chat", web::post().to(handlers::rag::rag_chat)),
             ),
     );
 }

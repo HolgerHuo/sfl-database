@@ -6,8 +6,11 @@ use crate::models::*;
 use crate::utils::{AppError, AppResult};
 
 impl super::Database {
-    pub async fn list_tags(&self) -> AppResult<Vec<Tag>> {
-        let tags = sqlx::query_as::<_, Tag>("SELECT * FROM tags ORDER BY display_order, name")
+    pub async fn list_tags(&self, featured: Option<bool>) -> AppResult<Vec<Tag>> {
+        let tags = sqlx::query_as::<_, Tag>(
+            "SELECT * FROM tags WHERE ($1::bool IS NULL OR featured = $1) ORDER BY display_order, name",
+        )
+            .bind(featured)
             .fetch_all(&self.pool)
             .await?;
 
@@ -27,14 +30,15 @@ impl super::Database {
         let now = Utc::now();
 
         let tag = sqlx::query_as::<_, Tag>(
-            "INSERT INTO tags (id, name, description, color, display_order, created_by, updated_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $7)
+                "INSERT INTO tags (id, name, description, color, featured, display_order, created_by, updated_by, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $8)
          RETURNING *",
         )
         .bind(&id)
         .bind(&request.name)
         .bind(&request.description)
         .bind(&request.color)
+          .bind(request.featured.unwrap_or(false))
         .bind(request.display_order.unwrap_or(0))
         .bind(created_by)
         .bind(now)
@@ -53,13 +57,14 @@ impl super::Database {
         let now = Utc::now();
 
         sqlx::query_as::<_, Tag>(
-            "UPDATE tags SET name = $1, description = $2, color = $3, display_order = $4, updated_by = $5, updated_at = $6
-         WHERE id = $7
+                "UPDATE tags SET name = $1, description = $2, color = $3, featured = COALESCE($4, featured), display_order = $5, updated_by = $6, updated_at = $7
+            WHERE id = $8
          RETURNING *"
         )
         .bind(&request.name)
         .bind(&request.description)
         .bind(&request.color)
+          .bind(request.featured)
         .bind(request.display_order.unwrap_or(0))
         .bind(updated_by)
         .bind(now)

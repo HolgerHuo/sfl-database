@@ -125,6 +125,7 @@ export default function TagForm() {
     name: '',
     description: '',
     color: '#3B82F6',
+    featured: false,
     displayOrder: 0,
   });
   const [loading, setLoading] = useState(false);
@@ -143,6 +144,7 @@ export default function TagForm() {
         name: data.name,
         description: data.description || '',
         color: data.color ? `#${data.color}` : '#3B82F6',
+        featured: !!data.featured,
         displayOrder: data.displayOrder,
       });
     } catch (error) {
@@ -160,6 +162,7 @@ export default function TagForm() {
         name: form.name,
         description: form.description || null,
         color: form.color || null,
+        featured: form.featured,
         displayOrder: form.displayOrder,
       };
 
@@ -242,6 +245,19 @@ export default function TagForm() {
             min={0}
           />
           <p className="text-sm text-gray-500 mt-1">数字越小越靠前</p>
+        </div>
+
+        <div>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.featured}
+              onChange={(e) => setForm({ ...form, featured: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="font-medium">首页推荐标签</span>
+          </label>
+          <p className="text-sm text-gray-500 mt-1">勾选后会在首页展示该标签及其随机人物</p>
         </div>
 
         <div className="flex gap-4">

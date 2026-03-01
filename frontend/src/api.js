@@ -2,6 +2,7 @@ import { API_BASE_URL } from './config';
 
 // Helper function to build query string with proper array handling
 function buildQueryString(params) {
+
   const parts = [];
 
   for (const [key, value] of Object.entries(params)) {
@@ -16,6 +17,24 @@ function buildQueryString(params) {
   }
 
   return parts.join('&');
+}
+
+// Parses a failed response and throws an enriched error
+async function checkResponse(response, message) {
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const ct = response.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const body = await response.json();
+        detail = body.error || body.message || body.detail || '';
+      } else {
+        const text = await response.text();
+        if (text && text.length < 200) detail = text;
+      }
+    } catch (_) {}
+    throw new Error(detail ? `${message}（${detail}）` : message);
+  }
 }
 
 // Global flag to prevent multiple concurrent refresh attempts
@@ -44,9 +63,7 @@ async function fetchWithAuth(url, options = {}) {
   refreshPromise = (async () => {
     try {
       const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
+      const refreshBody = refreshToken ? { refresh_token: refreshToken } : {};
 
       // Call refresh endpoint
       const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -54,7 +71,7 @@ async function fetchWithAuth(url, options = {}) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify(refreshBody),
         credentials: 'include',
       });
 
@@ -63,16 +80,21 @@ async function fetchWithAuth(url, options = {}) {
       }
 
       const data = await refreshResponse.json();
+      const newAccessToken = data.accessToken || data.access_token;
+
+      if (!newAccessToken) {
+        throw new Error('Token refresh response missing access token');
+      }
 
       // Store new access token
-      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('token', newAccessToken);
 
       // Update Authorization header in original request if it exists
       if (options.headers && options.headers['Authorization']) {
-        options.headers['Authorization'] = `Bearer ${data.access_token}`;
+        options.headers['Authorization'] = `Bearer ${newAccessToken}`;
       }
 
-      return data.access_token;
+      return newAccessToken;
     } catch (error) {
       // Refresh failed, clear tokens and redirect to login
       localStorage.removeItem('token');
@@ -99,7 +121,7 @@ export const api = {
     const queryString = buildQueryString(params);
     const url = `${API_BASE_URL}/scholars${queryString ? `?${queryString}` : ''}`;
     const response = await fetchWithAuth(url);
-    if (!response.ok) throw new Error('获取人物列表失败');
+    await checkResponse(response, '获取人物列表失败');
     return response.json();
   },
 
@@ -113,14 +135,16 @@ export const api = {
     }
 
     const response = await fetchWithAuth(url, { headers });
-    if (!response.ok) throw new Error('获取人物详情失败');
+    await checkResponse(response, '获取人物详情失败');
     return response.json();
   },
 
   // Tags - Public endpoints
-  async getTags() {
-    const response = await fetchWithAuth(`${API_BASE_URL}/tags`);
-    if (!response.ok) throw new Error('获取标签列表失败');
+  async getTags(params = {}) {
+    const queryString = buildQueryString(params);
+    const url = `${API_BASE_URL}/tags${queryString ? `?${queryString}` : ''}`;
+    const response = await fetchWithAuth(url);
+    await checkResponse(response, '获取标签列表失败');
     return response.json();
   },
 
@@ -128,7 +152,14 @@ export const api = {
     const queryString = buildQueryString(params);
     const url = `${API_BASE_URL}/tags/${id}${queryString ? `?${queryString}` : ''}`;
     const response = await fetchWithAuth(url);
-    if (!response.ok) throw new Error('获取标签详情失败');
+    await checkResponse(response, '获取标签详情失败');
+    return response.json();
+  },
+
+  // Identities - Public endpoints
+  async getPublicIdentities() {
+    const response = await fetchWithAuth(`${API_BASE_URL}/identities`);
+    await checkResponse(response, '获取身份列表失败');
     return response.json();
   },
 
@@ -137,13 +168,13 @@ export const api = {
     const queryString = buildQueryString(params);
     const url = `${API_BASE_URL}/news${queryString ? `?${queryString}` : ''}`;
     const response = await fetchWithAuth(url);
-    if (!response.ok) throw new Error('获取新闻列表失败');
+    await checkResponse(response, '获取新闻列表失败');
     return response.json();
   },
 
   async getNewsItem(id) {
     const response = await fetchWithAuth(`${API_BASE_URL}/news/${id}`);
-    if (!response.ok) throw new Error('获取新闻详情失败');
+    await checkResponse(response, '获取新闻详情失败');
     return response.json();
   },
 
@@ -153,15 +184,17 @@ export const api = {
   },
 
   async refresh(refreshToken) {
+    const refreshBody = refreshToken ? { refresh_token: refreshToken } : {};
+
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify(refreshBody),
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('刷新令牌失败');
+    await checkResponse(response, '刷新令牌失败');
     return response.json();
   },
 
@@ -174,7 +207,7 @@ export const api = {
       },
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('登出失败');
+    await checkResponse(response, '登出失败');
     return response.json();
   },
 
@@ -187,7 +220,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取所有人物列表失败');
+    await checkResponse(response, '获取所有人物列表失败');
     return response.json();
   },
 
@@ -200,7 +233,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('创建人物失败');
+    await checkResponse(response, '创建人物失败');
     return response.json();
   },
 
@@ -213,7 +246,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('更新人物失败');
+    await checkResponse(response, '更新人物失败');
     return response.json();
   },
 
@@ -224,7 +257,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除人物失败');
+    await checkResponse(response, '删除人物失败');
   },
 
   async unlockScholar(id, token) {
@@ -234,7 +267,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('解锁人物失败');
+    await checkResponse(response, '解锁人物失败');
     return response.json();
   },
 
@@ -245,7 +278,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('强制解锁人物失败');
+    await checkResponse(response, '强制解锁人物失败');
     return response.json();
   },
 
@@ -257,7 +290,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取人物历史失败');
+    await checkResponse(response, '获取人物历史失败');
     return response.json();
   },
 
@@ -270,7 +303,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取新闻列表失败');
+    await checkResponse(response, '获取新闻列表失败');
     return response.json();
   },
 
@@ -280,7 +313,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取新闻详情失败');
+    await checkResponse(response, '获取新闻详情失败');
     return response.json();
   },
 
@@ -293,7 +326,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('创建新闻失败');
+    await checkResponse(response, '创建新闻失败');
     return response.json();
   },
 
@@ -306,7 +339,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('更新新闻失败');
+    await checkResponse(response, '更新新闻失败');
     return response.json();
   },
 
@@ -317,7 +350,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除新闻失败');
+    await checkResponse(response, '删除新闻失败');
     return;
   },
 
@@ -328,7 +361,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取标签列表失败');
+    await checkResponse(response, '获取标签列表失败');
     return response.json();
   },
 
@@ -338,7 +371,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取标签详情失败');
+    await checkResponse(response, '获取标签详情失败');
     return response.json();
   },
 
@@ -351,7 +384,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('创建标签失败');
+    await checkResponse(response, '创建标签失败');
     return response.json();
   },
 
@@ -364,7 +397,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('更新标签失败');
+    await checkResponse(response, '更新标签失败');
     return response.json();
   },
 
@@ -375,7 +408,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除标签失败');
+    await checkResponse(response, '删除标签失败');
     return;
   },
 
@@ -386,7 +419,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取身份列表失败');
+    await checkResponse(response, '获取身份列表失败');
     return response.json();
   },
 
@@ -400,7 +433,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取身份详情失败');
+    await checkResponse(response, '获取身份详情失败');
     return response.json();
   },
 
@@ -413,7 +446,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('创建身份失败');
+    await checkResponse(response, '创建身份失败');
     return response.json();
   },
 
@@ -426,7 +459,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('更新身份失败');
+    await checkResponse(response, '更新身份失败');
     return response.json();
   },
 
@@ -437,7 +470,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除身份失败');
+    await checkResponse(response, '删除身份失败');
     return;
   },
 
@@ -450,7 +483,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取用户列表失败');
+    await checkResponse(response, '获取用户列表失败');
     return response.json();
   },
 
@@ -464,7 +497,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取用户详情失败');
+    await checkResponse(response, '获取用户详情失败');
     return response.json();
   },
 
@@ -477,7 +510,7 @@ export const api = {
       },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('更新用户失败');
+    await checkResponse(response, '更新用户失败');
     return response.json();
   },
 
@@ -488,7 +521,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除用户失败');
+    await checkResponse(response, '删除用户失败');
   },
 
   // Admin - Images
@@ -500,7 +533,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取图片列表失败');
+    await checkResponse(response, '获取图片列表失败');
     return response.json();
   },
 
@@ -515,7 +548,7 @@ export const api = {
       },
       body: formData,
     });
-    if (!response.ok) throw new Error('上传图片失败');
+    await checkResponse(response, '上传图片失败');
     return response.json();
   },
 
@@ -525,7 +558,7 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('获取图片失败');
+    await checkResponse(response, '获取图片失败');
     return response.blob();
   },
 
@@ -536,7 +569,47 @@ export const api = {
         'Authorization': `Bearer ${token}`,
       },
     });
-    if (!response.ok) throw new Error('删除图片失败');
+    await checkResponse(response, '删除图片失败');
     return;
+  },
+
+  // RAG - Search and Chat (authenticated)
+  async ragSearchAuthenticated(query, options = {}, token) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/rag/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        query,
+        limit: options.limit || 5,
+        threshold: options.threshold || 0.0,
+        include_hidden: options.includeHidden !== undefined ? options.includeHidden : false,
+        identities: options.identities || null,
+        tags: options.tags || null,
+      }),
+    });
+    await checkResponse(response, '搜索失败');
+    return response.json();
+  },
+
+  async ragChat(messages, options = {}, token) {
+    const response = await fetchWithAuth(`${API_BASE_URL}/admin/rag/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messages,
+        limit: options.limit || 5,
+        include_hidden: options.includeHidden !== undefined ? options.includeHidden : false,
+        identities: options.identities || null,
+        tags: options.tags || null,
+      }),
+    });
+    await checkResponse(response, '聊天失败');
+    return response.json();
   },
 };

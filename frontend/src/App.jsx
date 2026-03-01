@@ -22,6 +22,23 @@ import IdentitiesManagement from './pages/admin/IdentitiesManagement';
 import IdentityForm from './pages/admin/IdentityForm';
 import ImagesManagement from './pages/admin/ImagesManagement';
 import UsersManagement from './pages/admin/UsersManagement';
+import RAGConsole from './pages/admin/RAGConsole';
+
+function PublicLayout({ children }) {
+  return (
+    <div
+      className="relative min-h-screen bg-cover bg-center bg-fixed"
+      style={{ backgroundImage: "url('/api/background')" }}
+    >
+      <div className="absolute inset-0 bg-white/75" />
+      <div className="relative z-10 min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1">{children}</main>
+        <Footer />
+      </div>
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -29,46 +46,34 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><Home /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <Home />
+          </PublicLayout>
         } />
         <Route path="/scholars" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><Scholars /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <Scholars />
+          </PublicLayout>
         } />
         <Route path="/scholars/:id" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><ScholarDetail /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <ScholarDetail />
+          </PublicLayout>
         } />
         <Route path="/tags" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><Tags /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <Tags />
+          </PublicLayout>
         } />
         <Route path="/tags/:id" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><TagDetail /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <TagDetail />
+          </PublicLayout>
         } />
         <Route path="/news" element={
-          <div className="min-h-screen bg-gray-50 flex flex-col">
-            <Header />
-            <main className="flex-1"><News /></main>
-            <Footer />
-          </div>
+          <PublicLayout>
+            <News />
+          </PublicLayout>
         } />
 
         {/* Auth routes */}
@@ -78,6 +83,7 @@ function App() {
         {/* Admin routes */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="rag" element={<RAGConsole />} />
           <Route path="scholars" element={<ScholarsManagement />} />
           <Route path="scholars/new" element={<ScholarForm />} />
           <Route path="scholars/:id" element={<ScholarDetailAdmin />} />

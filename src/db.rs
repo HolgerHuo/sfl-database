@@ -31,6 +31,7 @@ impl Database {
 pub mod identities;
 pub mod images;
 pub mod news;
+pub mod rag;
 pub mod refresh_tokens;
 pub mod scholars;
 pub mod tags;

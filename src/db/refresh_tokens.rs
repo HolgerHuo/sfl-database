@@ -68,15 +68,6 @@ impl super::Database {
         Ok(())
     }
 
-    pub async fn revoke_refresh_token(&self, token_id: &str) -> AppResult<()> {
-        sqlx::query("DELETE FROM refresh_tokens WHERE id = $1")
-            .bind(token_id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn revoke_all_user_tokens(&self, user_id: &str) -> AppResult<()> {
         sqlx::query("DELETE FROM refresh_tokens WHERE account = $1")
             .bind(user_id)

@@ -68,6 +68,16 @@ export default function Header() {
             </div>
           </div>
 
+          <div className="hidden sm:flex sm:items-center">
+            <Link
+              to="/admin"
+              target="_blank"
+              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            >
+              登录后台
+            </Link>
+          </div>
+
           {/* Mobile menu button */}
           <div className="flex items-center sm:hidden">
             <button
@@ -147,6 +157,13 @@ export default function Header() {
             }`}
           >
             新闻
+          </Link>
+          <Link
+            to="/admin"
+            onClick={closeMobileMenu}
+            className="block pl-3 pr-4 py-2 border-l-4 text-base font-medium border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
+          >
+            登录后台
           </Link>
         </div>
       </div>

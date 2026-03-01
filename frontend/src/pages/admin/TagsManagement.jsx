@@ -62,6 +62,7 @@ export default function TagsManagement() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">名称</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">颜色</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">描述</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">首页推荐</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">排序</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">人物数</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
@@ -70,7 +71,7 @@ export default function TagsManagement() {
           <tbody className="bg-white divide-y divide-gray-200">
             {tags.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                   暂无数据
                 </td>
               </tr>
@@ -95,6 +96,9 @@ export default function TagsManagement() {
                     <div className="max-w-xs truncate">
                       {tag.description || '-'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {tag.featured ? '是' : '否'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {tag.displayOrder}

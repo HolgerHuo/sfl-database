@@ -14,16 +14,12 @@ pub enum UserRole {
 }
 
 impl UserRole {
-    pub fn can_approve(&self) -> bool {
-        matches!(self, UserRole::Admin | UserRole::Moderator)
-    }
-
-    pub fn can_manage_roles(&self) -> bool {
-        matches!(self, UserRole::Admin)
-    }
-
     pub fn is_admin(&self) -> bool {
         matches!(self, UserRole::Admin)
+    }
+
+    pub fn can_access_ai_features(&self) -> bool {
+        matches!(self, UserRole::Admin | UserRole::Moderator | UserRole::Editor)
     }
 }
 
@@ -89,6 +85,7 @@ pub struct TokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct RefreshTokenRequest {
+    #[serde(alias = "refreshToken")]
     pub refresh_token: String,
 }
 
@@ -115,26 +112,7 @@ pub struct Claims {
 }
 
 impl Claims {
-    pub fn can_approve(&self) -> bool {
-        self.role.can_approve()
-    }
-
-    pub fn can_manage_roles(&self) -> bool {
-        self.role.can_manage_roles()
-    }
-
     pub fn is_admin(&self) -> bool {
         self.role.is_admin()
     }
-
-    pub fn is_editor(&self) -> bool {
-        self.role == UserRole::Editor
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct UserInfo {
-    pub id: String,
-    pub email: String,
-    pub name: Option<String>,
 }

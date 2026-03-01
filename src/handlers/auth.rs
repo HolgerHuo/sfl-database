@@ -441,12 +441,25 @@ pub async fn callback(
 
 pub async fn refresh(
     app_state: web::Data<AppState>,
-    body: web::Json<RefreshTokenRequest>,
+    req: HttpRequest,
+    body: Option<web::Json<RefreshTokenRequest>>,
 ) -> AppResult<HttpResponse> {
     log::info!("Processing refresh token request");
 
+    let refresh_token = body
+        .as_ref()
+        .map(|b| b.refresh_token.clone())
+        .or_else(|| {
+            req.cookie(REFRESH_TOKEN_COOKIE_NAME)
+                .map(|cookie| cookie.value().to_string())
+        })
+        .ok_or_else(|| {
+            log::warn!("Refresh request missing token in both body and cookie");
+            AppError::Unauthorized("Missing refresh token".to_string())
+        })?;
+
     // Hash the provided refresh token
-    let token_hash = db::refresh_tokens::hash_token(&body.refresh_token);
+    let token_hash = db::refresh_tokens::hash_token(&refresh_token);
 
     // Look up the refresh token
     let refresh_token_record = app_state

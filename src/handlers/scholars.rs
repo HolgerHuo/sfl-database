@@ -69,6 +69,14 @@ pub async fn create_scholar(
     let scholar = app_state.db.create_scholar(&input, &claims.user_id).await?;
     let scholar_response = app_state.db.get_scholar(&scholar.id).await?;
 
+    // Auto-embed the scholar (non-blocking, errors are logged)
+    let app_state_clone = app_state.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::handlers::rag::embed_single_scholar(&app_state_clone, &scholar.id).await {
+            log::error!("Failed to auto-embed scholar {}: {}", scholar.id, e);
+        }
+    });
+
     app_state.cache.invalidate_pattern("/api/scholars").await;
     app_state.cache.invalidate_pattern("/api/tags").await;
 
@@ -90,6 +98,15 @@ pub async fn update_scholar(
         .update_scholar(&scholar_id, &input, &claims.user_id)
         .await?;
     let scholar_response = app_state.db.get_scholar(&scholar.id).await?;
+
+    // Auto-reembed the scholar (non-blocking, errors are logged)
+    let app_state_clone = app_state.clone();
+    let scholar_id_clone = scholar.id.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::handlers::rag::embed_single_scholar(&app_state_clone, &scholar_id_clone).await {
+            log::error!("Failed to auto-embed scholar {}: {}", scholar_id_clone, e);
+        }
+    });
 
     app_state.cache.invalidate_pattern("/api/scholars").await;
     app_state.cache.invalidate_pattern("/api/tags").await;

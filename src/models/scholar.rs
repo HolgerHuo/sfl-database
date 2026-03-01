@@ -141,6 +141,8 @@ pub struct ScholarRequest {
 pub struct ScholarQuery {
     #[serde(flatten)]
     pub pagination: super::PaginationParams,
+    pub search: Option<String>,
+    pub name: Option<String>,
     #[serde(deserialize_with = "deserialize_string_vec", default)]
     pub tags: Option<Vec<String>>,
     #[serde(deserialize_with = "deserialize_string_vec", default)]

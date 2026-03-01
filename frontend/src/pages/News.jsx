@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ErrorState from '../components/ErrorState';
+import EmptyState from '../components/EmptyState';
+import Pagination from '../components/Pagination';
 
 export default function News() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -11,10 +15,22 @@ export default function News() {
   
   // Get page from URL or default to 1
   const page = parseInt(searchParams.get('page') || '1', 10);
+  const previousPageRef = useRef(page);
 
   useEffect(() => {
     loadNews();
   }, [page, searchParams]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    if (previousPageRef.current !== page) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      previousPageRef.current = page;
+    }
+  }, [page, loading]);
 
   const setPage = (newPage) => {
     setSearchParams({ page: newPage.toString() });
@@ -25,8 +41,6 @@ export default function News() {
       setLoading(true);
       setError(null);
       const response = await api.getNews({ page, page_size: 10 });
-      
-      // The API now returns scholars with id, name, and imageFilename directly
       setNews(response.data || []);
       setPagination(response.pagination);
     } catch (err) {
@@ -38,29 +52,12 @@ export default function News() {
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN', {
+    return new Date(dateString).toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   };
-
-  if (loading && news.length === 0) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-gray-600">加载中...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-red-600">错误: {error}</div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -69,105 +66,92 @@ export default function News() {
         <p className="mt-2 text-gray-600">最新的人物相关新闻</p>
       </div>
 
-      {news.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">暂无新闻数据</p>
-        </div>
+      {loading ? (
+        <LoadingSpinner />
+      ) : error ? (
+        <ErrorState message={error} onRetry={loadNews} />
+      ) : news.length === 0 ? (
+        <EmptyState title="暂无新闻数据" description="目前还没有相关新闻" />
       ) : (
         <>
-          <div className="space-y-6">
+          <div className="space-y-4">
             {news.map((item) => (
               <a
                 key={item.id}
                 href={item.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow duration-300"
+                className="flex gap-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      {item.title}
-                    </h3>
-                    {item.summary && (
-                      <p className="text-gray-600 mb-3 line-clamp-2">
-                        {item.summary}
-                      </p>
-                    )}
-                    <div className="flex items-center text-sm text-gray-500 space-x-1 mb-3">
-                      <span>{formatDate(item.publishDate || item.createdAt)}</span>
-                      {item.source && <span>来源: {item.source}</span>}
-                    </div>
-                    
-                    {/* Related Scholars */}
-                    {item.scholars && item.scholars.length > 0 && (
-                      <div className="flex items-center gap-3 mt-3">
-                        <span className="text-sm text-gray-500">相关人物:</span>
-                        <div className="flex items-center gap-2">
-                          {item.scholars.slice(0, 3).map((scholar) => (
-                            <Link
-                              key={scholar.id}
-                              to={`/scholars/${scholar.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex items-center gap-2 bg-gray-50 rounded-full pl-1 pr-3 py-1 hover:bg-gray-200 transition-colors"
-                            >
-                              <img
-                                src={`/uploads/images/${scholar.imageFilename}`}
-                                alt={scholar.name}
-                                className="w-6 h-6 rounded-full object-cover"
-                              />
-                              <span className="text-sm text-gray-700">{scholar.name}</span>
-                            </Link>
-                          ))}
-                          {item.scholars.length > 3 && (
-                            <span className="text-sm text-gray-500">
-                              +{item.scholars.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                {/* Thumbnail */}
+                {item.image_url && (
+                  <div className="flex-shrink-0 hidden sm:block">
+                    <img
+                      src={item.image_url}
+                      alt={item.title}
+                      className="w-28 h-20 object-cover rounded-lg"
+                      onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1.5 line-clamp-2 hover:text-blue-600 transition-colors">
+                    {item.title}
+                  </h3>
+
+                  {item.summary && (
+                    <p className="text-sm text-gray-500 mb-2 line-clamp-2">{item.summary}</p>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                    <span>{formatDate(item.publishDate || item.createdAt)}</span>
+                    {item.source && (
+                      <>
+                        <span>·</span>
+                        <span>{item.source}</span>
+                      </>
                     )}
                   </div>
-                  {item.image_url && (
-                    <div className="ml-4 flex-shrink-0">
-                      <img
-                        src={item.image_url}
-                        alt={item.title}
-                        className="w-32 h-24 object-cover rounded"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
+
+                  {/* Related Scholars */}
+                  {item.scholars && item.scholars.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap mt-1">
+                      <span className="text-xs text-gray-400">相关人物:</span>
+                      {item.scholars.slice(0, 4).map((scholar) => (
+                        <Link
+                          key={scholar.id}
+                          to={`/scholars/${scholar.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-full pl-0.5 pr-2.5 py-0.5 hover:bg-gray-100 transition-colors"
+                        >
+                          <img
+                            src={`/uploads/images/${scholar.imageFilename}`}
+                            alt={scholar.name}
+                            className="w-5 h-5 rounded-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <span className="text-xs text-gray-600">{scholar.name}</span>
+                        </Link>
+                      ))}
+                      {item.scholars.length > 4 && (
+                        <span className="text-xs text-gray-400">+{item.scholars.length - 4}</span>
+                      )}
                     </div>
                   )}
+                </div>
+
+                {/* External link icon */}
+                <div className="flex-shrink-0 self-start mt-0.5">
+                  <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
                 </div>
               </a>
             ))}
           </div>
 
-          {pagination && (
-            <div className="mt-8">
-              <div className="flex justify-center items-center space-x-4">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-                >
-                  上一页
-                </button>
-                <span className="text-gray-700">
-                  第 {pagination.page} 页 / 共 {pagination.totalPages} 页 (总计 {pagination.total} 项)
-                </span>
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page >= pagination.totalPages}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-                >
-                  下一页
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination pagination={pagination} page={page} onPageChange={setPage} />
         </>
       )}
     </div>

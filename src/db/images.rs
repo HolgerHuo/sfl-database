@@ -29,31 +29,6 @@ impl super::Database {
             .ok_or_else(|| AppError::NotFound(format!("Image with id {} not found", id)))
     }
 
-    pub async fn create_image(
-        &self,
-        request: &ImageRequest,
-        uploaded_by: &str,
-    ) -> AppResult<Image> {
-        let id = cuid2::create_id();
-        let now = Utc::now();
-
-        let image = sqlx::query_as::<_, Image>(
-            "INSERT INTO images (id, filename, mime_type, size_bytes, uploaded_by, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $6)
-            RETURNING *"
-        )
-        .bind(&id)
-        .bind(&request.filename)
-        .bind(&request.mime_type)
-        .bind(request.size_bytes)
-        .bind(uploaded_by)
-        .bind(now)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(image)
-    }
-
     pub async fn create_image_record(
         &self,
         filename: &str,

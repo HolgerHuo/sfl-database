@@ -4,12 +4,18 @@ use sqlx::FromRow;
 use std::sync::LazyLock;
 use validator::Validate;
 
+#[derive(Debug, Deserialize)]
+pub struct TagListParams {
+    pub featured: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Tag {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub color: Option<String>,
+    pub featured: bool,
     #[serde(rename = "displayOrder")]
     pub display_order: i32,
     #[serde(skip_serializing_if = "Option::is_none", rename = "createdBy")]
@@ -31,6 +37,7 @@ pub struct TagRequest {
     pub description: Option<String>,
     #[validate(regex(path = *COLOR_REGEX))]
     pub color: Option<String>,
+    pub featured: Option<bool>,
     #[serde(rename = "displayOrder")]
     pub display_order: Option<i32>,
 }
@@ -43,6 +50,7 @@ pub struct TagListItem {
     pub id: String,
     pub name: String,
     pub color: Option<String>,
+    pub featured: bool,
     #[serde(rename = "displayOrder")]
     pub display_order: i32,
 }

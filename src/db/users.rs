@@ -141,21 +141,6 @@ impl super::Database {
         Ok(user)
     }
 
-    pub async fn get_users_info(&self, user_ids: &[String]) -> AppResult<std::collections::HashMap<String, UserInfo>> {
-        if user_ids.is_empty() {
-            return Ok(std::collections::HashMap::new());
-        }
-
-        let users: Vec<UserInfo> = sqlx::query_as(
-            "SELECT id, email, name FROM users WHERE id = ANY($1)"
-        )
-        .bind(user_ids)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(users.into_iter().map(|u| (u.id.clone(), u)).collect())
-    }
-
     pub async fn delete_user(&self, user_id: &str) -> AppResult<()> {
         let result = sqlx::query("DELETE FROM users WHERE id = $1")
             .bind(user_id)

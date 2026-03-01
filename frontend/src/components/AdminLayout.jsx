@@ -5,9 +5,22 @@ import { api } from '../api';
 export default function AdminLayout() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const token = localStorage.getItem('token');
+  const sidebarStorageKey = 'admin_sidebar_collapsed';
+
+  useEffect(() => {
+    const stored = localStorage.getItem(sidebarStorageKey);
+    if (stored === 'true') {
+      setSidebarCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(sidebarStorageKey, sidebarCollapsed ? 'true' : 'false');
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     if (!token) {
@@ -15,28 +28,51 @@ export default function AdminLayout() {
       return;
     }
 
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+    const initAuth = async () => {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
 
-      // Check if token is expired
-      const currentTime = Math.floor(Date.now() / 1000);
-      if (payload.exp && payload.exp < currentTime) {
-        console.error('Token expired');
+        // Check if token is expired
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < currentTime) {
+          console.log('Access token expired, attempting refresh...');
+
+          // Try to refresh before giving up
+          try {
+            const refreshToken = localStorage.getItem('refreshToken');
+            const result = await api.refresh(refreshToken);
+            const newAccessToken = result.accessToken || result.access_token;
+            if (newAccessToken) {
+              localStorage.setItem('token', newAccessToken);
+              // Decode the new token for user info
+              const newPayload = JSON.parse(atob(newAccessToken.split('.')[1]));
+              setUser(newPayload);
+              setLoading(false);
+              return;
+            }
+          } catch (refreshErr) {
+            console.error('Token refresh failed:', refreshErr);
+          }
+
+          // Refresh failed — clear and redirect
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          navigate('/login');
+          return;
+        }
+
+        setUser(payload);
+      } catch (e) {
+        console.error('Failed to decode token', e);
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         navigate('/login');
         return;
       }
+      setLoading(false);
+    };
 
-      setUser(payload);
-    } catch (e) {
-      console.error('Failed to decode token', e);
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      navigate('/login');
-      return;
-    }
-    setLoading(false);
+    initAuth();
   }, [token, navigate]);
 
   async function handleLogout() {
@@ -68,15 +104,40 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-800 text-white flex flex-col fixed h-screen">
-        <div className="p-4 bg-gray-900">
-          <Link to="/" className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold">人物数据库</h1>
+      <aside
+        className={`bg-gray-800 text-white flex flex-col fixed h-screen transition-all duration-200 ${
+          sidebarCollapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        <div
+          className={`p-4 bg-gray-900 ${sidebarCollapsed ? 'px-3 opacity-0 pointer-events-none h-0 overflow-hidden' : ''}`}
+        >
+          <Link to="/admin" className="flex items-center space-x-2">
+            <h1 className={`text-xl font-bold transition-opacity ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              人物数据库
+            </h1>
           </Link>
-          <p className="text-sm text-gray-400 mt-1">管理后台</p>
+          <p className={`text-sm text-gray-400 mt-1 transition-opacity ${sidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            管理后台
+          </p>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="flex-1 overflow-y-auto py-4 flex flex-col justify-start">
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(prev => !prev)}
+            className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700"
+            aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {sidebarCollapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6h12M10 12h8M6 18h12" />
+              )}
+            </svg>
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>收起侧边栏</span>
+          </button>
           <Link
             to="/admin"
             className={`flex items-center px-4 py-2 text-sm ${
@@ -85,10 +146,10 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            仪表盘
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>仪表盘</span>
           </Link>
 
           <Link
@@ -99,10 +160,10 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
-            人物管理
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>人物管理</span>
           </Link>
 
           <Link
@@ -113,10 +174,10 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
-            标签管理
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>标签管理</span>
           </Link>
 
           <Link
@@ -127,10 +188,10 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
             </svg>
-            新闻管理
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>新闻管理</span>
           </Link>
 
           <Link
@@ -141,10 +202,10 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
             </svg>
-            身份管理
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>身份管理</span>
           </Link>
 
           <Link
@@ -155,10 +216,24 @@ export default function AdminLayout() {
                 : 'text-gray-300 hover:bg-gray-700'
             }`}
           >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            图片管理
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>图片管理</span>
+          </Link>
+
+          <Link
+            to="/admin/rag"
+            className={`flex items-center px-4 py-2 text-sm ${
+              isActive('/admin/rag')
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>AI搜索</span>
           </Link>
 
           {canManageUsers && (
@@ -170,37 +245,39 @@ export default function AdminLayout() {
                   : 'text-gray-300 hover:bg-gray-700'
               }`}
             >
-              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-              用户管理
+              <span className={`${sidebarCollapsed ? 'sr-only' : 'ml-3'}`}>用户管理</span>
             </Link>
           )}
         </nav>
 
-        <div className="p-4 bg-gray-900 border-t border-gray-700">
-          <div className="flex items-center mb-2">
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-medium">
-              {user?.email?.[0]?.toUpperCase()}
+        {!sidebarCollapsed && (
+          <div className="p-4 bg-gray-900 border-t border-gray-700">
+            <div className="flex items-center mb-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-medium">
+                {user?.email?.[0]?.toUpperCase()}
+              </div>
+              <div className="ml-3 flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{user?.email}</p>
+                <p className="text-xs text-gray-400">
+                  {user?.role === 'admin' ? '管理员' : user?.role === 'moderator' ? '审核员' : '编辑'}
+                </p>
+              </div>
             </div>
-            <div className="ml-3 flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.email}</p>
-              <p className="text-xs text-gray-400">
-                {user?.role === 'admin' ? '管理员' : user?.role === 'moderator' ? '审核员' : '编辑'}
-              </p>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full px-3 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 rounded mb-2"
+            >
+              退出登录
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full px-3 py-2 text-sm text-left text-gray-300 hover:bg-gray-700 rounded mb-2"
-          >
-            退出登录
-          </button>
-        </div>
+        )}
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col ml-64">
+      <div className={`flex-1 flex flex-col transition-all duration-200 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
         <header className="bg-white shadow-sm z-10">
           <div className="px-6 py-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-800">
@@ -215,6 +292,7 @@ export default function AdminLayout() {
             <Link
               to="/"
               className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
+              target="_blank"
             >
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

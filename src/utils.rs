@@ -14,6 +14,11 @@ pub struct AppState {
     pub oidc_client_id: ClientId,
     pub oidc_client_secret: ClientSecret,
     pub cache: CacheMiddleware,
+    // LLM Configuration
+    pub llm_api_key: String,
+    pub llm_base_url: String,
+    pub embedding_model: String,
+    pub chat_model: String,
 }
 
 impl AppState {
@@ -33,6 +38,15 @@ impl AppState {
         let oidc_client_id = ClientId::new(oidc_client_id);
         let oidc_client_secret = ClientSecret::new(oidc_client_secret);
 
+        // Load LLM configuration from environment
+        let llm_api_key = std::env::var("LLM_API_KEY").unwrap_or_default();
+        let llm_base_url = std::env::var("LLM_BASE_URL")
+            .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        let embedding_model = std::env::var("EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+        let chat_model = std::env::var("CHAT_MODEL")
+            .unwrap_or_else(|_| "gpt-4-turbo".to_string());
+
         Self {
             db,
             jwt_secret,
@@ -41,6 +55,10 @@ impl AppState {
             oidc_client_id,
             oidc_client_secret,
             cache,
+            llm_api_key,
+            llm_base_url,
+            embedding_model,
+            chat_model,
         }
     }
 }

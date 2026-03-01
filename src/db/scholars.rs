@@ -41,6 +41,68 @@ impl super::Database {
             builder.push_bind(gender);
         }
 
+        if let Some(name) = query.name.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+            let pattern = format!("%{}%", name);
+            builder.push(" AND s.name ILIKE ");
+            builder.push_bind(pattern);
+        }
+
+        if let Some(search) = query
+            .search
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            let pattern = format!("%{}%", search);
+
+            builder.push(" AND (");
+            builder.push("s.name ILIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR s.field_of_research ILIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR s.introduction ILIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR s.social_influence ILIKE ");
+            builder.push_bind(pattern.clone());
+
+            builder.push(
+                " OR EXISTS (
+                    SELECT 1
+                    FROM scholar_tags st
+                    INNER JOIN tags t ON t.id = st.tag
+                    WHERE st.scholar = s.id
+                      AND (
+                        t.name ILIKE ",
+            );
+            builder.push_bind(pattern.clone());
+            builder.push(" OR COALESCE(t.description, '') ILIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(
+                "
+                      )
+                )",
+            );
+
+            builder.push(
+                " OR EXISTS (
+                    SELECT 1
+                    FROM identities i
+                    WHERE i.id = s.identity
+                      AND (
+                        i.name ILIKE ",
+            );
+            builder.push_bind(pattern.clone());
+            builder.push(" OR COALESCE(i.description, '') ILIKE ");
+            builder.push_bind(pattern);
+            builder.push(
+                "
+                      )
+                )",
+            );
+
+            builder.push(")");
+        }
+
         if let Some(featured) = query.featured {
             builder.push(" AND s.featured = ");
             builder.push_bind(featured);
@@ -141,7 +203,7 @@ impl super::Database {
         }
 
         let tags = sqlx::query(
-            "SELECT st.scholar, t.id, t.name, t.color, t.display_order
+            "SELECT st.scholar, t.id, t.name, t.color, t.featured, t.display_order
              FROM scholar_tags st
              INNER JOIN tags t ON st.tag = t.id
              WHERE st.scholar = ANY($1)
@@ -162,6 +224,7 @@ impl super::Database {
                     id: tag.get("id"),
                     name: tag.get("name"),
                     color: tag.get("color"),
+                    featured: tag.get("featured"),
                     display_order: tag.get("display_order"),
                 });
         }
@@ -303,34 +366,6 @@ impl super::Database {
             created_at: scholar.created_at,
             updated_at: scholar.updated_at,
         })
-    }
-
-    pub async fn get_scholar_tags(&self, scholar_id: &str) -> AppResult<Vec<Tag>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            "SELECT t.* FROM tags t 
-         INNER JOIN scholar_tags st ON t.id = st.tag 
-         WHERE st.scholar = $1 
-         ORDER BY t.display_order",
-        )
-        .bind(scholar_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(tags)
-    }
-
-    pub async fn get_scholar_news(&self, scholar_id: &str) -> AppResult<Vec<News>> {
-        let news = sqlx::query_as::<_, News>(
-            "SELECT n.* FROM news n
-         INNER JOIN news_scholars ns ON n.id = ns.news
-         WHERE ns.scholar = $1
-         ORDER BY n.publish_date DESC",
-        )
-        .bind(scholar_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(news)
     }
 
     pub async fn create_scholar(

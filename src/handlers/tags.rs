@@ -28,8 +28,11 @@ pub async fn get_tag(
     Ok(HttpResponse::Ok().json(TagDetailResponse { tag, scholars, pagination }))
 }
 
-pub async fn list_tags(app_state: web::Data<AppState>) -> AppResult<HttpResponse> {
-    let tags = app_state.db.list_tags().await?;
+pub async fn list_tags(
+    app_state: web::Data<AppState>,
+    query: web::Query<TagListParams>,
+) -> AppResult<HttpResponse> {
+    let tags = app_state.db.list_tags(query.featured).await?;
     
     let tag_ids: Vec<String> = tags.iter().map(|t| t.id.clone()).collect();
     let tags_scholars_map = app_state.db.get_tags_scholars_map(&tag_ids).await?;
